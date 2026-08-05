@@ -172,12 +172,21 @@ Notification → Display Notification
           <h3>New macro: <code>AlertBot WhatsApp</code></h3>
           <p>
             Trigger → <strong>Device Events → Notification → Notification Received</strong>.
-            Application: <strong>WhatsApp</strong>. Leave the text filter empty —
-            AlertBot decides which chats matter, so you edit the list in one place
-            instead of rebuilding the macro.
+          </p>
+          <p>
+            Application: pick <strong>WhatsApp Business</strong>
+            (<code>com.whatsapp.w4b</code>) — it is a separate app from WhatsApp
+            (<code>com.whatsapp</code>) and MacroDroid lists them separately. If
+            the chats you watch live in both apps, tick both in the same trigger.
+          </p>
+          <p>
+            Leave the text filter empty — AlertBot decides which chats matter, so
+            you edit the list in one place instead of rebuilding the macro.
           </p>
           <p class="muted">
             MacroDroid needs notification access: it will prompt the first time.
+            Also make sure WhatsApp Business notifications for these chats are not
+            muted, otherwise there is no notification for the macro to see.
           </p>
         </div>
       </div>
