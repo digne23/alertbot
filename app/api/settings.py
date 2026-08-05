@@ -393,6 +393,14 @@ def delete_device(device_id: int, db: Session = Depends(get_db)):
 # ----------------------------------------------------------------------
 # Test the notification path
 # ----------------------------------------------------------------------
+@router.post("/test-mailbox")
+def test_mailbox():
+    """Log into the IMAP mailbox and report what is there."""
+    from app.services.email_client import test_connection
+
+    return test_connection()
+
+
 @router.post("/test-notification")
 def test_notification(provider: str | None = None):
     results = notification_service.send_test(provider)

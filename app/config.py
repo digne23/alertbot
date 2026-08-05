@@ -41,8 +41,14 @@ class Settings:
     DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///alerts.db")
 
     # --- Mailbox ---------------------------------------------------------
-    GMAIL_EMAIL = os.getenv("GMAIL_EMAIL", "")
-    GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
+    # Any IMAP mailbox: cPanel, Gmail, Outlook, whatever. GMAIL_* are the
+    # original names and still work, so existing .env files keep running.
+    MAILBOX_EMAIL = os.getenv("MAILBOX_EMAIL") or os.getenv("GMAIL_EMAIL", "")
+    MAILBOX_PASSWORD = os.getenv("MAILBOX_PASSWORD") or os.getenv("GMAIL_APP_PASSWORD", "")
+
+    # Deprecated aliases, kept so nothing that reads them breaks.
+    GMAIL_EMAIL = MAILBOX_EMAIL
+    GMAIL_APP_PASSWORD = MAILBOX_PASSWORD
 
     IMAP_HOST = os.getenv("IMAP_HOST", "imap.gmail.com")
     IMAP_PORT = int(os.getenv("IMAP_PORT", 993))

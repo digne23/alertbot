@@ -118,7 +118,11 @@
 </div>
 
 <div class="panel">
-  <div class="panel-head"><h2>Mailbox polling</h2></div>
+  <div class="panel-head">
+    <h2>Mailbox polling</h2>
+    <div class="spacer"></div>
+    <button class="btn-sm" onclick="testMailbox(this)">🔌 Test connection</button>
+  </div>
   <div class="panel-body">
     <div class="switch-row">
       <input type="checkbox" id="poll.enabled" />
@@ -131,6 +135,12 @@
       <label>Check every (seconds)</label>
       <input type="number" id="poll.interval_seconds" min="10" />
     </div>
+    <p class="muted" style="font-size:12.5px; margin-bottom:0">
+      Server and credentials live in <code>.env</code>
+      (<code>MAILBOX_EMAIL</code>, <code>MAILBOX_PASSWORD</code>,
+      <code>IMAP_HOST</code>, <code>IMAP_FOLDER</code>) and need a restart to change.
+    </p>
+    <div id="mailbox-result" style="margin-top:14px"></div>
   </div>
 </div>
 
@@ -476,6 +486,46 @@
     } catch (error) {
       AlertBot.toast(error.message, "err");
     }
+    button.disabled = false;
+  }
+
+  // -------------------------------------------------------- mailbox
+  async function testMailbox(button) {
+    button.disabled = true;
+    const original = button.textContent;
+    button.textContent = "Connecting…";
+    try {
+      const result = await AlertBot.api("/api/settings/test-mailbox", { method: "POST" });
+
+      const folders = (result.folders || [])
+        .map((name) => `<code>${AlertBot.escapeHtml(name)}</code>`)
+        .join(" ");
+
+      document.getElementById("mailbox-result").innerHTML = result.ok
+        ? `<div class="banner ok">
+             <span>✅</span>
+             <div class="grow">
+               <strong>Connected to ${AlertBot.escapeHtml(result.host)} as ${AlertBot.escapeHtml(result.email)}</strong><br />
+               Folder <code>${AlertBot.escapeHtml(result.folder)}</code>:
+               ${result.total} message(s), <strong>${result.unseen} unread</strong>
+               — unread is what AlertBot processes.<br />
+               <span class="muted">Folders: ${folders || "none listed"}</span>
+             </div>
+           </div>`
+        : `<div class="banner danger">
+             <span>⚠️</span>
+             <div class="grow">
+               <strong>Could not read the mailbox</strong><br />
+               ${AlertBot.escapeHtml(result.error || "unknown error")}<br />
+               <span class="muted">Tried ${AlertBot.escapeHtml(result.host)}:${result.port}
+               as ${AlertBot.escapeHtml(result.email || "(no address configured)")}</span>
+               ${folders ? `<br /><span class="muted">Folders: ${folders}</span>` : ""}
+             </div>
+           </div>`;
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.textContent = original;
     button.disabled = false;
   }
 
