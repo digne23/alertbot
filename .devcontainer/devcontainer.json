@@ -1,0 +1,30 @@
+{
+  "name": "AlertBot (Python 3.13 + Claude Code)",
+  "image": "mcr.microsoft.com/devcontainers/python:3.13",
+  "features": {
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": {
+      "label": "AlertBot API",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "pip install --user -r requirements.txt",
+  "mounts": [
+    "source=alertbot-claude-config,target=/home/vscode/.claude,type=volume"
+  ],
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+  },
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    }
+  }
+}
