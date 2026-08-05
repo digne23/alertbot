@@ -1,5 +1,6 @@
 import email
 import logging
+from datetime import datetime, timedelta, timezone
 from email.header import decode_header
 from email.message import Message
 from email.utils import parsedate_to_datetime
@@ -105,6 +106,13 @@ def test_connection() -> dict:
         return result
 
 
+def _as_utc(value) -> datetime | None:
+    """IMAP INTERNALDATE comes back naive on some servers, aware on others."""
+    if not isinstance(value, datetime):
+        return None
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
 def _watermark_key(folder: str) -> str:
     return f"mail.uid_watermark.{folder}"
 
@@ -181,15 +189,35 @@ def fetch_new_emails() -> list[dict]:
             watermark = 0
 
         if watermark <= 0:
-            # First run: process what is currently unread so a fresh install
-            # still reacts to an alert sitting in the mailbox, but do not drag
-            # in years of history.
-            uids = client.search(["UNSEEN"])
+            # First run. A real mailbox can hold thousands of unread messages,
+            # so processing "everything unread" would replay months of old
+            # alerts and alarm for outages that ended long ago. Start from now,
+            # and only look back if explicitly asked to.
             all_uids = client.search(["ALL"])
             highest = max(all_uids) if all_uids else 0
+
+            try:
+                lookback = int(settings_service.get("mail.first_poll_lookback_minutes") or 0)
+            except (TypeError, ValueError):
+                lookback = 0
+
+            uids = []
+            if lookback > 0:
+                cutoff = datetime.now(timezone.utc) - timedelta(minutes=lookback)
+                # IMAP SINCE only has date granularity, so narrow by date and
+                # then filter precisely on the server's INTERNALDATE.
+                candidates = client.search(["SINCE", cutoff.date()])
+                if candidates:
+                    dates = client.fetch(candidates, ["INTERNALDATE"])
+                    uids = [
+                        uid for uid, data in dates.items()
+                        if _as_utc(data.get(b"INTERNALDATE")) and _as_utc(data[b"INTERNALDATE"]) >= cutoff
+                    ]
+
             logger.info(
-                "First poll of %s: %s unread message(s), starting UID watermark at %s",
-                folder, len(uids), highest,
+                "First poll of %s: %s existing message(s) left alone, starting at UID %s"
+                " (lookback %s min, %s message(s) to process)",
+                folder, len(all_uids), highest, lookback, len(uids),
             )
         else:
             # '<n>:*' can return the last message even when its UID is lower,

@@ -56,6 +56,11 @@ def defaults() -> dict:
         # position by IMAP UID and leaves the unread flag alone. Turn this on
         # only for a dedicated mailbox nobody else opens.
         "mail.mark_seen": False,
+
+        # How far back to look on the very first poll. 0 = start from now.
+        # The mailbox holds thousands of old messages; replaying them would
+        # alarm for outages that ended months ago.
+        "mail.first_poll_lookback_minutes": 0,
     }
 
 
