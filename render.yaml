@@ -1,0 +1,53 @@
+# Render blueprint for AlertBot.
+#
+# One web service runs both the API and the APScheduler poller in-process, so
+# no separate worker is needed. A persistent disk keeps alerts.db alive across
+# deploys — swap DATABASE_URL for a managed PostgreSQL when you outgrow it.
+
+services:
+  - type: web
+    name: alertbot
+    runtime: python
+    plan: starter          # free tier sleeps; incidents would be missed
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    autoDeploy: true
+
+    disk:
+      name: alertbot-data
+      mountPath: /var/data
+      sizeGB: 1
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.3"
+      - key: DATABASE_URL
+        value: sqlite:////var/data/alerts.db
+      - key: APP_NAME
+        value: AlertBot
+      - key: CHECK_INTERVAL
+        value: "60"
+      - key: PUBLIC_URL
+        sync: false        # set to the service URL once Render assigns it
+      - key: GMAIL_EMAIL
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      - key: IMAP_HOST
+        value: imap.gmail.com
+      - key: NTFY_SERVER
+        value: https://ntfy.sh
+      - key: NTFY_TOPIC
+        sync: false
+      - key: MACRODROID_WEBHOOK_URL
+        sync: false
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false        # paste the whole service-account JSON
+      - key: DASHBOARD_USER
+        value: admin
+      - key: DASHBOARD_PASSWORD
+        sync: false        # REQUIRED once this is public
+      - key: DEVICE_REGISTRATION_KEY
+        sync: false

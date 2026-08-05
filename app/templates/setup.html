@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="banner info">
+  <span>📱</span>
+  <div class="grow">
+    <strong>Goal: your phone wakes you at 4am.</strong><br />
+    Do step 1 and you are alerted tonight. Steps 2 and 3 make it louder and
+    harder to sleep through.
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>1 · ntfy — fastest path, works today</h2></div>
+  <div class="panel-body">
+    <div class="steps">
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Install ntfy on the phone</h3>
+          <p>Play Store → <strong>ntfy</strong> (by Philipp Heckel). On iPhone: App Store → ntfy.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Pick a secret topic and subscribe</h3>
+          <p>
+            Anyone who knows the topic can read your alerts, so use something
+            unguessable. Here is one generated for you:
+          </p>
+          <div class="copy-row">
+            <span class="code" id="suggested-topic">…</span>
+            <button class="btn-sm" onclick="AlertBot.copy(document.getElementById('suggested-topic').textContent)">Copy</button>
+            <button class="btn-sm" onclick="newTopic()">Regenerate</button>
+          </div>
+          <p style="margin-top:8px">
+            In the ntfy app tap <strong>+</strong> → paste the topic → Subscribe.
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Tell AlertBot the topic</h3>
+          <p>Paste it here and save — this writes it straight into Settings.</p>
+          <div class="copy-row">
+            <input type="text" id="topic-input" placeholder="alertbot-esicia-…" style="flex:1" />
+            <button class="btn-primary" onclick="saveTopic(this)">Save topic</button>
+            <button onclick="testChannel('ntfy', this)">Send test</button>
+          </div>
+          <p class="muted" style="margin-top:8px" id="ntfy-current"></p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Make it loud</h3>
+          <p>
+            In the ntfy app, open the topic → ⋮ → <strong>Notification settings</strong>:
+            set the sound to a loud alarm tone, priority to <strong>Max</strong>,
+            and allow it to <strong>override Do Not Disturb</strong>
+            (Android: Settings → Apps → ntfy → Notifications → Alarms &amp; DND access).
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>2 · MacroDroid — the real alarm</h2></div>
+  <div class="panel-body">
+    <p class="muted" style="margin-top:0">
+      A push notification is still just a notification. MacroDroid can force the
+      alarm stream to full volume, play a siren on a loop and wake the screen —
+      which is what actually gets someone out of bed.
+    </p>
+    <div class="steps">
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Install MacroDroid and create a macro</h3>
+          <p>Play Store → MacroDroid. Add Macro → name it <code>AlertBot Alarm</code>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Trigger: Connectivity → Webhook (URL)</h3>
+          <p>
+            MacroDroid shows you a URL like
+            <code>https://trigger.macrodroid.com/&lt;device-id&gt;/alertbot</code>.
+            Copy it into the box below.
+          </p>
+          <div class="copy-row">
+            <input type="text" id="macro-input" placeholder="https://trigger.macrodroid.com/…/alertbot" style="flex:1" />
+            <button class="btn-primary" onclick="saveWebhook(this)">Save webhook</button>
+            <button onclick="testChannel('macrodroid', this)">Send test</button>
+          </div>
+          <p class="muted" style="margin-top:8px" id="macro-current"></p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Actions: make noise</h3>
+          <p>Add these actions, in order:</p>
+          <pre class="code">Volume → Set Alarm volume to 100%
+Media  → Play Sound (pick a siren) · loop = on
+Device → Vibrate (long pattern)
+Screen → Turn Screen On
+Notification → Display Notification
+    title:   AlertBot: {mv=title}
+    message: {mv=message}</pre>
+          <p class="muted">
+            AlertBot sends <code>title</code>, <code>message</code>, <code>service</code>,
+            <code>provider</code>, <code>severity</code>, <code>state</code>,
+            <code>event</code>, <code>level</code>, <code>incident</code> and
+            <code>alarm</code> as webhook variables — declare the ones you want as
+            magic text in MacroDroid.
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Stop the siren when you acknowledge</h3>
+          <p>
+            Add a second macro triggered by the same webhook name with
+            <code>alarm=0</code>, whose action is <em>Stop Sound</em>. AlertBot sends
+            <code>alarm=0</code> on recovery notifications.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>3 · AlertBot Android app (Firebase)</h2></div>
+  <div class="panel-body">
+    <p style="margin-top:0">
+      The Kotlin app lives in <code>android/</code> in this repository. It receives
+      FCM pushes, wakes the screen, plays a full-volume alarm, vibrates and lets you
+      acknowledge the incident from the notification.
+    </p>
+    <div class="steps">
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Build the APK</h3>
+          <p>
+            Your PC can't run Android Studio, so build it in the cloud: the repo
+            ships <code>.github/workflows/android.yml</code>. Push to GitHub, open
+            <strong>Actions → Build Android APK</strong>, download the artifact and
+            install it on the Galaxy A15.
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Point the app at this server</h3>
+          <p>
+            On first launch enter the backend URL and (if set) the dashboard
+            password. The app registers its FCM token with
+            <code>POST /api/devices</code> — it then shows up under Settings → devices.
+          </p>
+          <div class="copy-row">
+            <span class="code" id="backend-url"></span>
+            <button class="btn-sm" onclick="AlertBot.copy(document.getElementById('backend-url').textContent)">Copy</button>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Enable Firebase in Settings</h3>
+          <p>Turn on the Firebase channel, then hit its Test button.</p>
+          <button onclick="testChannel('firebase', this)">Send Firebase test</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>4 · Install this dashboard as an app</h2></div>
+  <div class="panel-body">
+    <p style="margin-top:0" class="muted">
+      AlertBot is a PWA, so it installs on any phone without a store.
+    </p>
+    <ul style="color:var(--text-dim); font-size:14px; line-height:1.9">
+      <li><strong>Android / Chrome:</strong> menu ⋮ → <em>Add to Home screen</em> → Install.</li>
+      <li><strong>iPhone / Safari:</strong> Share → <em>Add to Home Screen</em>. Then open it from the home screen — web push only works in installed mode on iOS 16.4+.</li>
+      <li><strong>Desktop:</strong> the install icon in the address bar.</li>
+    </ul>
+    <button onclick="AlertBot.askPermission()">🔔 Enable browser notifications</button>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>End-to-end check</h2>
+    <div class="spacer"></div>
+    <button class="btn-danger" onclick="fullTest(this)">🚨 Fire a test incident</button>
+  </div>
+  <div class="panel-body">
+    <p class="muted" style="margin-top:0">
+      Creates a real incident through IncidentService — the same path a Pingdom
+      email takes. Your phone should react within a couple of seconds, and keep
+      re-alerting until you acknowledge it.
+    </p>
+    <div id="test-result"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+  function randomTopic() {
+    const suffix = Array.from(crypto.getRandomValues(new Uint8Array(5)))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+    return `alertbot-esicia-${suffix}`;
+  }
+
+  function newTopic() {
+    const topic = randomTopic();
+    document.getElementById("suggested-topic").textContent = topic;
+    document.getElementById("topic-input").value = topic;
+  }
+
+  async function showCurrent() {
+    const data = await AlertBot.api("/api/settings");
+    const topic = data.values["ntfy.topic"];
+    document.getElementById("ntfy-current").textContent = topic
+      ? `Currently sending to ${data.values["ntfy.server"]}/${topic}` +
+        (data.values["ntfy.enabled"] ? "" : " (channel disabled in Settings)")
+      : "No ntfy topic configured yet.";
+
+    const webhook = data.values["macrodroid.webhook_url"];
+    document.getElementById("macro-current").textContent = webhook
+      ? `Currently calling ${webhook}` +
+        (data.values["macrodroid.enabled"] ? "" : " (channel disabled in Settings)")
+      : "No MacroDroid webhook configured yet.";
+
+    if (topic) document.getElementById("topic-input").value = topic;
+    if (webhook) document.getElementById("macro-input").value = webhook;
+  }
+
+  async function saveTopic(button) {
+    const topic = document.getElementById("topic-input").value.trim();
+    if (!topic) return AlertBot.toast("Enter a topic first", "err");
+    button.disabled = true;
+    try {
+      await AlertBot.api("/api/settings", {
+        method: "PUT",
+        body: { values: { "ntfy.topic": topic, "ntfy.enabled": true } },
+      });
+      AlertBot.toast("ntfy topic saved and channel enabled", "ok");
+      showCurrent();
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.disabled = false;
+  }
+
+  async function saveWebhook(button) {
+    const url = document.getElementById("macro-input").value.trim();
+    if (!url) return AlertBot.toast("Paste the webhook URL first", "err");
+    button.disabled = true;
+    try {
+      await AlertBot.api("/api/settings", {
+        method: "PUT",
+        body: { values: { "macrodroid.webhook_url": url, "macrodroid.enabled": true } },
+      });
+      AlertBot.toast("MacroDroid webhook saved and channel enabled", "ok");
+      showCurrent();
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.disabled = false;
+  }
+
+  async function testChannel(provider, button) {
+    button.disabled = true;
+    try {
+      const data = await AlertBot.api(`/api/settings/test-notification?provider=${provider}`, {
+        method: "POST",
+      });
+      data.results.forEach((result) =>
+        AlertBot.toast(
+          `${result.provider}: ${result.success ? "sent ✓" : "failed — " + result.detail}`,
+          result.success ? "ok" : "err",
+        ),
+      );
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.disabled = false;
+  }
+
+  async function fullTest(button) {
+    button.disabled = true;
+    try {
+      const result = await AlertBot.api("/api/test-alert", { method: "POST", body: {} });
+      document.getElementById("test-result").innerHTML = `
+        <div class="banner ok">
+          <span>✅</span>
+          <div class="grow">
+            Incident #${result.incident_id} created via IncidentService.
+            <a href="/incident/${result.incident_id}">Watch the delivery timeline →</a>
+          </div>
+        </div>`;
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.disabled = false;
+  }
+
+  document.getElementById("backend-url").textContent = window.location.origin;
+  newTopic();
+  showCurrent();
+  AlertBot.setLive("", "setup");
+</script>
+{% endblock %}

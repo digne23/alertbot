@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block topbar %}
+<button class="btn-sm" onclick="AlertBot.askPermission()">🔔 Enable alerts</button>
+<button class="btn-sm" onclick="pollNow(this)">📥 Poll now</button>
+<button class="btn-sm btn-danger" onclick="testAlert(this)">🚨 Test alert</button>
+{% endblock %}
+
+{% block content %}
+<div id="channel-warning"></div>
+
+<div class="stats" id="stats">
+  <div class="stat danger">
+    <div class="stat-label">Open</div>
+    <div class="stat-value" id="stat-open">—</div>
+    <div class="stat-hint">incidents needing attention</div>
+  </div>
+  <div class="stat warn">
+    <div class="stat-label">Unacknowledged</div>
+    <div class="stat-value" id="stat-unacked">—</div>
+    <div class="stat-hint">alarm still repeating</div>
+  </div>
+  <div class="stat ok">
+    <div class="stat-label">Resolved 24h</div>
+    <div class="stat-value" id="stat-resolved">—</div>
+    <div class="stat-hint">recovered automatically</div>
+  </div>
+  <div class="stat info">
+    <div class="stat-label">Pushes 24h</div>
+    <div class="stat-value" id="stat-pushes">—</div>
+    <div class="stat-hint" id="stat-pushes-hint">deliveries attempted</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Mean ack time</div>
+    <div class="stat-value" id="stat-mtta">—</div>
+    <div class="stat-hint">last 7 days</div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Active incidents</h2>
+    <div class="spacer"></div>
+    <div class="filters">
+      <input class="search" id="filter-q" type="search" placeholder="Search service, provider, reason…" />
+      <select id="filter-state">
+        <option value="OPEN">Open only</option>
+        <option value="ALL">All states</option>
+        <option value="RESOLVED">Resolved</option>
+      </select>
+    </div>
+  </div>
+  <div class="panel-body">
+    <div class="incident-list" id="incident-list">
+      <div class="empty">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<div class="split">
+  <div class="panel">
+    <div class="panel-head"><h2>Notification log</h2></div>
+    <div class="panel-body tight">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>When</th><th>Channel</th><th>Event</th><th>Result</th></tr>
+          </thead>
+          <tbody id="notification-rows">
+            <tr><td colspan="4" class="dim">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Mailbox activity</h2></div>
+    <div class="panel-body tight">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>When</th><th>From</th><th>Subject</th><th>Critical</th></tr>
+          </thead>
+          <tbody id="email-rows">
+            <tr><td colspan="4" class="dim">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+  let firstLoad = true;
+
+  function incidentCard(incident) {
+    const alarming = incident.state === "OPEN" && !incident.acknowledged && !incident.silenced;
+    const classes = [
+      "incident",
+      incident.state.toLowerCase(),
+      incident.acknowledged ? "acked" : "",
+      alarming ? "alarming" : "",
+    ].join(" ");
+
+    const actions = [];
+    if (incident.state === "OPEN") {
+      if (!incident.acknowledged) {
+        actions.push(
+          `<button class="btn-ack btn-sm" onclick="ack(${incident.id}, this)">✓ Acknowledge</button>`,
+        );
+        actions.push(
+          `<button class="btn-sm" onclick="silence(${incident.id}, ${!incident.silenced}, this)">${
+            incident.silenced ? "🔔 Unsilence" : "🔕 Silence"
+          }</button>`,
+        );
+      }
+      actions.push(
+        `<button class="btn-sm" onclick="resolveIncident(${incident.id}, this)">Close incident</button>`,
+      );
+    }
+    actions.push(`<a class="btn btn-sm btn-ghost" href="/incident/${incident.id}">Details →</a>`);
+
+    return `
+      <article class="${classes}">
+        <div class="incident-top">
+          <div class="incident-title">
+            <span class="service">${AlertBot.escapeHtml(incident.service)}</span>
+            <span class="provider">${AlertBot.escapeHtml(incident.provider)}</span>
+          </div>
+          <div class="badges">${AlertBot.stateBadges(incident)}</div>
+        </div>
+        <div class="incident-reason">${AlertBot.escapeHtml(incident.reason || "No reason reported")}</div>
+        <div class="incident-meta">
+          <span>#${incident.id}</span>
+          <span>opened ${AlertBot.timeAgo(incident.created_at)}</span>
+          <span>${incident.event_count} event(s)</span>
+          <span>${incident.notify_count} push(es)</span>
+          ${incident.last_notified_at ? `<span>last push ${AlertBot.timeAgo(incident.last_notified_at)}</span>` : ""}
+          ${incident.acknowledged_at ? `<span>acked ${AlertBot.timeAgo(incident.acknowledged_at)}</span>` : ""}
+        </div>
+        <div class="incident-actions">${actions.join("")}</div>
+      </article>`;
+  }
+
+  async function loadIncidents() {
+    const params = new URLSearchParams({
+      state: document.getElementById("filter-state").value,
+      limit: "50",
+    });
+    const query = document.getElementById("filter-q").value.trim();
+    if (query) params.set("q", query);
+
+    try {
+      const data = await AlertBot.api(`/api/incidents?${params}`);
+      const list = document.getElementById("incident-list");
+
+      if (!data.items.length) {
+        list.innerHTML = `<div class="empty"><span class="big">🛡️</span>Nothing burning. AlertBot is watching the mailbox.</div>`;
+      } else {
+        list.innerHTML = data.items.map(incidentCard).join("");
+      }
+
+      if (firstLoad) {
+        AlertBot.seedAlerted(data.items);
+        firstLoad = false;
+      } else {
+        data.items
+          .filter((incident) => incident.state === "OPEN" && !incident.acknowledged)
+          .forEach(AlertBot.browserNotify);
+      }
+
+      AlertBot.setLive("", `updated ${new Date().toLocaleTimeString()}`);
+    } catch (error) {
+      AlertBot.setLive("dead", "connection lost");
+    }
+  }
+
+  async function loadStats() {
+    try {
+      const stats = await AlertBot.api("/api/stats");
+      document.getElementById("stat-open").textContent = stats.open;
+      document.getElementById("stat-unacked").textContent = stats.unacknowledged;
+      document.getElementById("stat-resolved").textContent = stats.resolved_24h;
+      document.getElementById("stat-pushes").textContent = stats.notifications_24h;
+      document.getElementById("stat-pushes-hint").textContent =
+        stats.notification_failures_24h
+          ? `${stats.notification_failures_24h} failed`
+          : "all delivered";
+      document.getElementById("stat-mtta").textContent =
+        stats.mtta_minutes === null ? "—" : `${stats.mtta_minutes}m`;
+
+      const warning = document.getElementById("channel-warning");
+      const live = stats.channels.filter((channel) => channel.enabled);
+      warning.innerHTML = live.length
+        ? ""
+        : `<div class="banner danger"><span>⚠️</span><div class="grow"><strong>No notification channel is enabled.</strong><br />
+             Incidents are being recorded, but nothing will wake anyone up.
+             <a href="/setup">Set up your phone →</a></div></div>`;
+    } catch (error) {
+      /* handled by the incident poll */
+    }
+  }
+
+  async function loadLogs() {
+    try {
+      const [notifications, emails] = await Promise.all([
+        AlertBot.api("/api/notifications?limit=12"),
+        AlertBot.api("/api/emails?limit=12"),
+      ]);
+
+      document.getElementById("notification-rows").innerHTML = notifications.length
+        ? notifications
+            .map(
+              (row) => `
+              <tr>
+                <td class="mono dim nowrap">${AlertBot.timeAgo(row.created_at)}</td>
+                <td class="mono">${AlertBot.escapeHtml(row.provider)}</td>
+                <td><span class="badge ${row.event === "RESOLVED" ? "resolved" : "open"}">${AlertBot.escapeHtml(row.event)}</span></td>
+                <td class="mono">${row.success ? '<span style="color:var(--green)">✓ sent</span>' : `<span style="color:var(--red)" title="${AlertBot.escapeHtml(row.detail)}">✗ failed</span>`}</td>
+              </tr>`,
+            )
+            .join("")
+        : '<tr><td colspan="4" class="dim">No notifications sent yet.</td></tr>';
+
+      document.getElementById("email-rows").innerHTML = emails.length
+        ? emails
+            .map(
+              (row) => `
+              <tr>
+                <td class="mono dim nowrap">${AlertBot.timeAgo(row.processed_at)}</td>
+                <td class="mono">${AlertBot.escapeHtml((row.sender || "").slice(0, 34))}</td>
+                <td>${AlertBot.escapeHtml((row.subject || "").slice(0, 70))}</td>
+                <td>${row.is_critical ? '<span class="badge open">yes</span>' : '<span class="badge muted">no</span>'}</td>
+              </tr>`,
+            )
+            .join("")
+        : '<tr><td colspan="4" class="dim">No mail processed yet.</td></tr>';
+    } catch (error) {
+      /* non-critical panels */
+    }
+  }
+
+  async function ack(id, button) {
+    button.disabled = true;
+    button.textContent = "Acknowledging…";
+    try {
+      await AlertBot.api(`/api/incidents/${id}/ack`, { method: "POST" });
+      AlertBot.toast(`Incident #${id} acknowledged — alarm stopped`, "ok");
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    refreshAll();
+  }
+
+  async function silence(id, value, button) {
+    button.disabled = true;
+    try {
+      await AlertBot.api(`/api/incidents/${id}/silence?silenced=${value}`, { method: "POST" });
+      AlertBot.toast(value ? `Incident #${id} silenced` : `Incident #${id} unsilenced`, "ok");
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    refreshAll();
+  }
+
+  async function resolveIncident(id, button) {
+    button.disabled = true;
+    try {
+      await AlertBot.api(`/api/incidents/${id}/resolve`, { method: "POST" });
+      AlertBot.toast(`Incident #${id} closed`, "ok");
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    refreshAll();
+  }
+
+  async function pollNow(button) {
+    button.disabled = true;
+    AlertBot.setLive("stale", "polling mailbox…");
+    try {
+      const summary = await AlertBot.api("/api/poll", { method: "POST" });
+      if (summary.error) {
+        AlertBot.toast(`Poll failed: ${summary.error}`, "err");
+      } else {
+        AlertBot.toast(
+          `Fetched ${summary.fetched} mail(s), ${summary.critical} critical`,
+          summary.critical ? "ok" : "",
+        );
+      }
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.disabled = false;
+    refreshAll();
+  }
+
+  async function testAlert(button) {
+    button.disabled = true;
+    try {
+      const result = await AlertBot.api("/api/test-alert", { method: "POST", body: {} });
+      AlertBot.toast(`Test incident #${result.incident_id} created — your phone should ring`, "ok");
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.disabled = false;
+    refreshAll();
+  }
+
+  function refreshAll() {
+    loadIncidents();
+    loadStats();
+    loadLogs();
+  }
+
+  document.getElementById("filter-state").addEventListener("change", loadIncidents);
+  let searchTimer;
+  document.getElementById("filter-q").addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(loadIncidents, 300);
+  });
+
+  AlertBot.every(10, refreshAll);
+</script>
+{% endblock %}

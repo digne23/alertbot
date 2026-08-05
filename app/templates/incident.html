@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block topbar %}
+<a class="btn btn-sm btn-ghost" href="/history">← All incidents</a>
+{% endblock %}
+
+{% block content %}
+<div id="incident-root">
+  <div class="empty">Loading incident…</div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+  const INCIDENT_ID = {{ incident_id }};
+
+  function eventDot(event, success) {
+    if (!success) return '<span class="tl-dot bad">✗</span>';
+    if (event === "RESOLVED") return '<span class="tl-dot ok">✓</span>';
+    if (event === "ESCALATED") return '<span class="tl-dot warn">!</span>';
+    return '<span class="tl-dot bad">▲</span>';
+  }
+
+  function render(incident) {
+    const alarming = incident.state === "OPEN" && !incident.acknowledged && !incident.silenced;
+
+    const actions = [];
+    if (incident.state === "OPEN") {
+      if (!incident.acknowledged) {
+        actions.push('<button class="btn-ack" onclick="ack(this)">✓ Acknowledge</button>');
+        actions.push(
+          `<button onclick="silence(${!incident.silenced}, this)">${incident.silenced ? "🔔 Unsilence" : "🔕 Silence alarm"}</button>`,
+        );
+      }
+      actions.push('<button onclick="closeIncident(this)">Close incident</button>');
+    }
+
+    const timeline = [];
+    timeline.push({
+      when: incident.created_at,
+      title: `Incident opened — ${incident.reason || "no reason reported"}`,
+      meta: `source: ${incident.source}`,
+      dot: '<span class="tl-dot bad">▲</span>',
+    });
+    incident.notifications
+      .slice()
+      .reverse()
+      .forEach((row) => {
+        timeline.push({
+          when: row.created_at,
+          title: `${row.event} pushed via ${row.provider}`,
+          meta: row.success ? "delivered" : `failed — ${row.detail}`,
+          dot: eventDot(row.event, row.success),
+        });
+      });
+    if (incident.acknowledged_at) {
+      timeline.push({
+        when: incident.acknowledged_at,
+        title: "Acknowledged — alarm stopped",
+        meta: "",
+        dot: '<span class="tl-dot ok">✓</span>',
+      });
+    }
+    if (incident.resolved_at) {
+      timeline.push({
+        when: incident.resolved_at,
+        title: "Incident resolved",
+        meta: "",
+        dot: '<span class="tl-dot ok">✓</span>',
+      });
+    }
+    timeline.sort((a, b) => new Date(a.when) - new Date(b.when));
+
+    document.getElementById("incident-root").innerHTML = `
+      ${
+        alarming
+          ? '<div class="banner danger"><span>🚨</span><div class="grow"><strong>This incident is still alarming.</strong> The phone keeps ringing until you acknowledge it.</div></div>'
+          : ""
+      }
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Incident #${incident.id}</h2>
+          <div class="spacer"></div>
+          ${AlertBot.stateBadges(incident)}
+        </div>
+        <div class="panel-body">
+          <div class="incident-title" style="margin-bottom:10px">
+            <span class="service" style="font-size:21px">${AlertBot.escapeHtml(incident.service)}</span>
+            <span class="provider">${AlertBot.escapeHtml(incident.provider)}</span>
+          </div>
+          <div class="incident-reason" style="margin-bottom:16px">${AlertBot.escapeHtml(incident.reason || "No reason reported")}</div>
+
+          <div class="stats" style="margin-bottom:0">
+            <div class="stat"><div class="stat-label">Severity</div><div class="stat-value" style="font-size:19px">${AlertBot.escapeHtml(incident.severity)}</div></div>
+            <div class="stat"><div class="stat-label">Events</div><div class="stat-value">${incident.event_count}</div></div>
+            <div class="stat"><div class="stat-label">Pushes sent</div><div class="stat-value">${incident.notify_count}</div></div>
+            <div class="stat"><div class="stat-label">Escalation</div><div class="stat-value">L${incident.escalation_level}</div></div>
+            <div class="stat"><div class="stat-label">Opened</div><div class="stat-value" style="font-size:16px">${AlertBot.timeAgo(incident.created_at)}</div><div class="stat-hint">${AlertBot.formatTime(incident.created_at)}</div></div>
+          </div>
+
+          <div class="incident-actions" style="margin-top:18px">${actions.join("")}</div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="panel">
+          <div class="panel-head"><h2>Timeline</h2></div>
+          <div class="panel-body">
+            <div class="timeline">
+              ${timeline
+                .map(
+                  (entry) => `
+                  <div class="tl-item">
+                    ${entry.dot}
+                    <div class="tl-body">
+                      <div class="tl-title">${AlertBot.escapeHtml(entry.title)}</div>
+                      <div class="tl-meta">${AlertBot.formatTime(entry.when)}${entry.meta ? " · " + AlertBot.escapeHtml(entry.meta) : ""}</div>
+                    </div>
+                  </div>`,
+                )
+                .join("")}
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Source emails</h2></div>
+          <div class="panel-body tight">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Received</th><th>From</th><th>Subject</th></tr></thead>
+                <tbody>
+                  ${
+                    incident.emails.length
+                      ? incident.emails
+                          .map(
+                            (mail) => `
+                            <tr>
+                              <td class="mono dim nowrap">${AlertBot.formatTime(mail.received_at)}</td>
+                              <td class="mono">${AlertBot.escapeHtml(mail.sender || "")}</td>
+                              <td>${AlertBot.escapeHtml(mail.subject || "")}</td>
+                            </tr>`,
+                          )
+                          .join("")
+                      : '<tr><td colspan="3" class="dim">No source email (created manually or by test).</td></tr>'
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  async function load() {
+    try {
+      render(await AlertBot.api(`/api/incidents/${INCIDENT_ID}`));
+      AlertBot.setLive("", `updated ${new Date().toLocaleTimeString()}`);
+    } catch (error) {
+      document.getElementById("incident-root").innerHTML =
+        `<div class="banner danger"><span>⚠️</span><div class="grow">${AlertBot.escapeHtml(error.message)}</div></div>`;
+      AlertBot.setLive("dead", "error");
+    }
+  }
+
+  async function ack(button) {
+    button.disabled = true;
+    await AlertBot.api(`/api/incidents/${INCIDENT_ID}/ack`, { method: "POST" });
+    AlertBot.toast("Acknowledged — alarm stopped", "ok");
+    load();
+  }
+
+  async function silence(value, button) {
+    button.disabled = true;
+    await AlertBot.api(`/api/incidents/${INCIDENT_ID}/silence?silenced=${value}`, { method: "POST" });
+    load();
+  }
+
+  async function closeIncident(button) {
+    button.disabled = true;
+    await AlertBot.api(`/api/incidents/${INCIDENT_ID}/resolve`, { method: "POST" });
+    AlertBot.toast("Incident closed", "ok");
+    load();
+  }
+
+  AlertBot.every(15, load);
+</script>
+{% endblock %}

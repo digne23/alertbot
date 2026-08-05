@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "363244711366",
+    "project_id": "alertbot-c4dfd",
+    "storage_bucket": "alertbot-c4dfd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:363244711366:android:9357cef259aee90c5916c7",
+        "android_client_info": {
+          "package_name": "com.alertbot.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCm8u22rL_0ZQNqbwHhHYFowm5EFhPvyJQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

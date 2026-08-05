@@ -1,0 +1,542 @@
+{% extends "base.html" %}
+
+{% block topbar %}
+<button class="btn-sm btn-primary" onclick="saveSettings(this)">💾 Save settings</button>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div class="panel-head">
+    <h2>Notification channels</h2>
+    <div class="spacer"></div>
+    <button class="btn-sm btn-danger" onclick="testNotification(null, this)">🔔 Test all channels</button>
+  </div>
+  <div class="panel-body">
+    <div class="switch-row">
+      <input type="checkbox" id="notifications.enabled" />
+      <div class="grow">
+        <div class="title">Notifications enabled</div>
+        <div class="sub">Master switch. Off means incidents are recorded silently.</div>
+      </div>
+    </div>
+    <div class="switch-row">
+      <input type="checkbox" id="notifications.notify_on_resolve" />
+      <div class="grow">
+        <div class="title">Notify on recovery</div>
+        <div class="sub">Send a low-priority push when a service comes back up.</div>
+      </div>
+    </div>
+
+    <h3 style="margin:22px 0 6px; font-size:15px">ntfy</h3>
+    <div class="switch-row">
+      <input type="checkbox" id="ntfy.enabled" />
+      <div class="grow">
+        <div class="title">Use ntfy</div>
+        <div class="sub">Free push to the ntfy app. No Android build needed.</div>
+      </div>
+      <button class="btn-sm" onclick="testNotification('ntfy', this)">Test</button>
+    </div>
+    <div class="form-grid" style="margin-top:12px">
+      <div class="field">
+        <label>Server</label>
+        <input type="text" id="ntfy.server" placeholder="https://ntfy.sh" />
+      </div>
+      <div class="field">
+        <label>Topic</label>
+        <input type="text" id="ntfy.topic" placeholder="esicia-alertbot-7f3a9c" />
+        <span class="hint">Anyone who knows the topic gets your alerts — keep it long and random.</span>
+      </div>
+      <div class="field">
+        <label>Access token (optional)</label>
+        <input type="text" id="ntfy.token" placeholder="tk_…" />
+      </div>
+      <div class="field">
+        <label>Priority (1–5)</label>
+        <input type="number" id="ntfy.priority" min="1" max="5" />
+        <span class="hint">5 = max. Needed to ring through a silent phone.</span>
+      </div>
+    </div>
+
+    <h3 style="margin:22px 0 6px; font-size:15px">MacroDroid</h3>
+    <div class="switch-row">
+      <input type="checkbox" id="macrodroid.enabled" />
+      <div class="grow">
+        <div class="title">Use MacroDroid webhook</div>
+        <div class="sub">Fires a macro on the phone: max volume, siren, override DND.</div>
+      </div>
+      <button class="btn-sm" onclick="testNotification('macrodroid', this)">Test</button>
+    </div>
+    <div class="field" style="margin-top:12px">
+      <label>Webhook URL</label>
+      <input type="text" id="macrodroid.webhook_url" placeholder="https://trigger.macrodroid.com/xxxx/alertbot" />
+    </div>
+
+    <h3 style="margin:22px 0 6px; font-size:15px">Firebase Cloud Messaging</h3>
+    <div class="switch-row">
+      <input type="checkbox" id="firebase.enabled" />
+      <div class="grow">
+        <div class="title">Use Firebase</div>
+        <div class="sub" id="firebase-status">For the AlertBot Android app.</div>
+      </div>
+      <button class="btn-sm" onclick="testNotification('firebase', this)">Test</button>
+    </div>
+    <div class="table-wrap" style="margin-top:12px">
+      <table>
+        <thead><tr><th>Device</th><th>Platform</th><th>Token</th><th></th></tr></thead>
+        <tbody id="device-rows"><tr><td colspan="4" class="dim">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Escalation</h2></div>
+  <div class="panel-body">
+    <div class="switch-row">
+      <input type="checkbox" id="escalation.enabled" />
+      <div class="grow">
+        <div class="title">Repeat until acknowledged</div>
+        <div class="sub">Keep re-alerting while an incident is open and unacknowledged.</div>
+      </div>
+    </div>
+    <div class="form-grid" style="margin-top:12px">
+      <div class="field">
+        <label>Repeat every (minutes)</label>
+        <input type="number" id="escalation.repeat_minutes" min="1" />
+      </div>
+      <div class="field">
+        <label>Escalate after (minutes)</label>
+        <input type="number" id="escalation.escalate_after_minutes" min="1" />
+        <span class="hint">Switches to escalation level 1 — louder tags, higher priority.</span>
+      </div>
+      <div class="field">
+        <label>Max repeats (0 = unlimited)</label>
+        <input type="number" id="escalation.max_repeats" min="0" />
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Mailbox polling</h2></div>
+  <div class="panel-body">
+    <div class="switch-row">
+      <input type="checkbox" id="poll.enabled" />
+      <div class="grow">
+        <div class="title">Poll the mailbox</div>
+        <div class="sub" id="mailbox-status">Checking mailbox configuration…</div>
+      </div>
+    </div>
+    <div class="field" style="margin-top:12px; max-width:260px">
+      <label>Check every (seconds)</label>
+      <input type="number" id="poll.interval_seconds" min="10" />
+    </div>
+  </div>
+</div>
+
+<div class="split">
+  <div class="panel">
+    <div class="panel-head"><h2>Critical senders</h2></div>
+    <div class="panel-body">
+      <p class="muted" style="margin-top:0; font-size:13.5px">
+        Mail is only considered an alert when it comes from one of these.
+      </p>
+      <div class="chip-list" id="sender-list"></div>
+      <div class="row" style="margin-top:14px">
+        <input type="text" id="new-sender" placeholder="alert@pingdom.com" style="flex:1" />
+        <button class="btn-primary" onclick="addSender(this)">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Critical keywords</h2></div>
+    <div class="panel-body">
+      <p class="muted" style="margin-top:0; font-size:13.5px">
+        Matched on whole words, so "up" never matches "support".
+      </p>
+      <div class="chip-list" id="keyword-list"></div>
+      <div class="row" style="margin-top:14px">
+        <input type="text" id="new-keyword" placeholder="unreachable" style="flex:1" />
+        <button class="btn-primary" onclick="addKeyword(this)">Add</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Rule tester</h2>
+    <div class="spacer"></div>
+    <span class="muted" style="font-size:13px">Paste a real alert email and see what AlertBot would do.</span>
+  </div>
+  <div class="panel-body">
+    <div class="form-grid">
+      <div class="field">
+        <label>From</label>
+        <input type="text" id="test-sender" placeholder="alert@pingdom.com" />
+      </div>
+      <div class="field">
+        <label>Subject</label>
+        <input type="text" id="test-subject" placeholder="DOWN alert: portal.esicia.rw is DOWN" />
+      </div>
+    </div>
+    <div class="field" style="margin-top:14px">
+      <label>Body</label>
+      <textarea id="test-body" placeholder="HTTP Server Error 503 Service Unavailable"></textarea>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn-primary" onclick="runRuleTest(this)">Test rules</button>
+      <label class="row" style="gap:7px">
+        <input type="checkbox" id="test-create" /> Actually create the incident
+      </label>
+    </div>
+    <div id="rule-result" style="margin-top:14px"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>On-call users</h2>
+    <div class="spacer"></div>
+    <button class="btn-sm btn-primary" onclick="openUserForm()">+ Add user</button>
+  </div>
+  <div class="panel-body tight">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Push</th><th>Token</th><th>Active</th><th></th></tr>
+        </thead>
+        <tbody id="user-rows"><tr><td colspan="8" class="dim">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div id="user-form" style="display:none; padding:18px; border-top:1px solid var(--border-soft)">
+      <div class="form-grid">
+        <div class="field"><label>Name</label><input type="text" id="u-name" /></div>
+        <div class="field"><label>Email</label><input type="email" id="u-email" /></div>
+        <div class="field"><label>Phone</label><input type="text" id="u-phone" placeholder="+2507…" /></div>
+        <div class="field">
+          <label>Role</label>
+          <select id="u-role">
+            <option value="engineer">engineer</option>
+            <option value="manager">manager</option>
+            <option value="admin">admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <label class="row" style="gap:7px"><input type="checkbox" id="u-push" checked /> Push</label>
+        <label class="row" style="gap:7px"><input type="checkbox" id="u-email-notify" /> Email</label>
+        <label class="row" style="gap:7px"><input type="checkbox" id="u-sms" /> SMS</label>
+        <label class="row" style="gap:7px"><input type="checkbox" id="u-whatsapp" /> WhatsApp</label>
+        <label class="row" style="gap:7px"><input type="checkbox" id="u-active" checked /> Active</label>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn-primary" onclick="saveUser(this)">Save user</button>
+        <button onclick="closeUserForm()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+  const BOOLEAN_KEYS = [
+    "notifications.enabled",
+    "notifications.notify_on_resolve",
+    "ntfy.enabled",
+    "macrodroid.enabled",
+    "firebase.enabled",
+    "escalation.enabled",
+    "poll.enabled",
+  ];
+
+  const VALUE_KEYS = [
+    "ntfy.server",
+    "ntfy.topic",
+    "ntfy.token",
+    "ntfy.priority",
+    "macrodroid.webhook_url",
+    "escalation.repeat_minutes",
+    "escalation.escalate_after_minutes",
+    "escalation.max_repeats",
+    "poll.interval_seconds",
+  ];
+
+  let editingUserId = null;
+
+  async function loadSettings() {
+    const data = await AlertBot.api("/api/settings");
+    BOOLEAN_KEYS.forEach((key) => {
+      const node = document.getElementById(key);
+      if (node) node.checked = Boolean(data.values[key]);
+    });
+    VALUE_KEYS.forEach((key) => {
+      const node = document.getElementById(key);
+      if (node) node.value = data.values[key] ?? "";
+    });
+
+    const firebase = data.channels.find((channel) => channel.name === "firebase");
+    if (firebase) document.getElementById("firebase-status").textContent = firebase.target;
+
+    const health = await AlertBot.api("/api/health");
+    document.getElementById("mailbox-status").textContent = health.mailbox_configured
+      ? "IMAP credentials are configured."
+      : "⚠ No IMAP credentials in .env — polling will find nothing.";
+  }
+
+  async function saveSettings(button) {
+    button.disabled = true;
+    const values = {};
+    BOOLEAN_KEYS.forEach((key) => {
+      const node = document.getElementById(key);
+      if (node) values[key] = node.checked;
+    });
+    VALUE_KEYS.forEach((key) => {
+      const node = document.getElementById(key);
+      if (!node) return;
+      values[key] = node.type === "number" ? Number(node.value || 0) : node.value;
+    });
+
+    try {
+      await AlertBot.api("/api/settings", { method: "PUT", body: { values } });
+      AlertBot.toast("Settings saved", "ok");
+      loadSettings();
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.disabled = false;
+  }
+
+  async function testNotification(provider, button) {
+    button.disabled = true;
+    const original = button.textContent;
+    button.textContent = "Sending…";
+    try {
+      const data = await AlertBot.api(
+        `/api/settings/test-notification${provider ? `?provider=${provider}` : ""}`,
+        { method: "POST" },
+      );
+      if (!data.results.length) {
+        AlertBot.toast("Nothing sent — no channel is enabled", "err");
+      }
+      data.results.forEach((result) =>
+        AlertBot.toast(
+          `${result.provider}: ${result.success ? "sent ✓" : "failed — " + result.detail}`,
+          result.success ? "ok" : "err",
+        ),
+      );
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.textContent = original;
+    button.disabled = false;
+  }
+
+  // ------------------------------------------------------------ rules
+  async function loadRules() {
+    const [senders, keywords] = await Promise.all([
+      AlertBot.api("/api/settings/senders"),
+      AlertBot.api("/api/settings/keywords"),
+    ]);
+
+    document.getElementById("sender-list").innerHTML = senders
+      .map(
+        (row) => `<span class="chip ${row.enabled ? "" : "off"}">${AlertBot.escapeHtml(row.value)}
+          <button title="Remove" onclick="removeSender(${row.id})">×</button></span>`,
+      )
+      .join("");
+
+    document.getElementById("keyword-list").innerHTML = keywords
+      .map(
+        (row) => `<span class="chip ${row.enabled ? "" : "off"}">${AlertBot.escapeHtml(row.value)}
+          <button title="Remove" onclick="removeKeyword(${row.id})">×</button></span>`,
+      )
+      .join("");
+  }
+
+  async function addSender(button) {
+    const input = document.getElementById("new-sender");
+    if (!input.value.trim()) return;
+    button.disabled = true;
+    try {
+      await AlertBot.api("/api/settings/senders", { method: "POST", body: { value: input.value } });
+      input.value = "";
+      loadRules();
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.disabled = false;
+  }
+
+  async function removeSender(id) {
+    await AlertBot.api(`/api/settings/senders/${id}`, { method: "DELETE" });
+    loadRules();
+  }
+
+  async function addKeyword(button) {
+    const input = document.getElementById("new-keyword");
+    if (!input.value.trim()) return;
+    button.disabled = true;
+    try {
+      await AlertBot.api("/api/settings/keywords", { method: "POST", body: { value: input.value } });
+      input.value = "";
+      loadRules();
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.disabled = false;
+  }
+
+  async function removeKeyword(id) {
+    await AlertBot.api(`/api/settings/keywords/${id}`, { method: "DELETE" });
+    loadRules();
+  }
+
+  async function runRuleTest(button) {
+    button.disabled = true;
+    try {
+      const result = await AlertBot.api("/api/simulate-email", {
+        method: "POST",
+        body: {
+          sender: document.getElementById("test-sender").value,
+          subject: document.getElementById("test-subject").value,
+          body: document.getElementById("test-body").value,
+          create_incident: document.getElementById("test-create").checked,
+        },
+      });
+
+      document.getElementById("rule-result").innerHTML = `
+        <div class="banner ${result.critical ? "danger" : "info"}">
+          <span>${result.critical ? "🚨" : "💤"}</span>
+          <div class="grow">
+            <strong>${result.critical ? "Would raise an incident" : "Would be ignored"}</strong><br />
+            Parser: <code>${AlertBot.escapeHtml(result.parser)}</code> ·
+            Service: <code>${AlertBot.escapeHtml(result.parsed.service)}</code> ·
+            State: <code>${AlertBot.escapeHtml(result.parsed.state)}</code><br />
+            Matched senders: ${result.matched_senders.length ? result.matched_senders.map((value) => `<code>${AlertBot.escapeHtml(value)}</code>`).join(" ") : "<em>none</em>"}<br />
+            Matched keywords: ${result.matched_keywords.length ? result.matched_keywords.map((value) => `<code>${AlertBot.escapeHtml(value)}</code>`).join(" ") : "<em>none</em>"}
+            ${result.incident ? `<br /><a href="/incident/${result.incident.id}">Created incident #${result.incident.id} →</a>` : ""}
+          </div>
+        </div>`;
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.disabled = false;
+  }
+
+  // ------------------------------------------------------------ users
+  async function loadUsers() {
+    const users = await AlertBot.api("/api/settings/users");
+    document.getElementById("user-rows").innerHTML = users.length
+      ? users
+          .map(
+            (user) => `
+            <tr>
+              <td>${AlertBot.escapeHtml(user.name)}</td>
+              <td class="mono">${AlertBot.escapeHtml(user.email)}</td>
+              <td class="mono">${AlertBot.escapeHtml(user.phone || "—")}</td>
+              <td>${AlertBot.escapeHtml(user.role)}</td>
+              <td>${user.notify_push ? "✓" : "—"}</td>
+              <td>${user.has_token ? '<span class="badge info">registered</span>' : '<span class="badge muted">none</span>'}</td>
+              <td>${user.active ? '<span class="badge resolved">yes</span>' : '<span class="badge muted">no</span>'}</td>
+              <td class="right nowrap">
+                <button class="btn-sm" onclick='editUser(${JSON.stringify(user)})'>Edit</button>
+                <button class="btn-sm" onclick="removeUser(${user.id})">Delete</button>
+              </td>
+            </tr>`,
+          )
+          .join("")
+      : '<tr><td colspan="8" class="dim">No users yet. Add yourself so notification preferences have somewhere to live.</td></tr>';
+  }
+
+  function openUserForm() {
+    document.getElementById("user-form").style.display = "block";
+  }
+
+  function closeUserForm() {
+    editingUserId = null;
+    document.getElementById("user-form").style.display = "none";
+    ["u-name", "u-email", "u-phone"].forEach((id) => (document.getElementById(id).value = ""));
+  }
+
+  function editUser(user) {
+    editingUserId = user.id;
+    document.getElementById("u-name").value = user.name;
+    document.getElementById("u-email").value = user.email;
+    document.getElementById("u-phone").value = user.phone || "";
+    document.getElementById("u-role").value = user.role;
+    document.getElementById("u-push").checked = user.notify_push;
+    document.getElementById("u-email-notify").checked = user.notify_email;
+    document.getElementById("u-sms").checked = user.notify_sms;
+    document.getElementById("u-whatsapp").checked = user.notify_whatsapp;
+    document.getElementById("u-active").checked = user.active;
+    openUserForm();
+  }
+
+  async function saveUser(button) {
+    button.disabled = true;
+    const payload = {
+      name: document.getElementById("u-name").value,
+      email: document.getElementById("u-email").value,
+      phone: document.getElementById("u-phone").value,
+      role: document.getElementById("u-role").value,
+      notify_push: document.getElementById("u-push").checked,
+      notify_email: document.getElementById("u-email-notify").checked,
+      notify_sms: document.getElementById("u-sms").checked,
+      notify_whatsapp: document.getElementById("u-whatsapp").checked,
+      active: document.getElementById("u-active").checked,
+    };
+
+    try {
+      if (editingUserId) {
+        await AlertBot.api(`/api/settings/users/${editingUserId}`, { method: "PUT", body: payload });
+      } else {
+        await AlertBot.api("/api/settings/users", { method: "POST", body: payload });
+      }
+      AlertBot.toast("User saved", "ok");
+      closeUserForm();
+      loadUsers();
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.disabled = false;
+  }
+
+  async function removeUser(id) {
+    if (!confirm("Delete this user?")) return;
+    await AlertBot.api(`/api/settings/users/${id}`, { method: "DELETE" });
+    loadUsers();
+  }
+
+  // ---------------------------------------------------------- devices
+  async function loadDevices() {
+    const devices = await AlertBot.api("/api/settings/devices");
+    document.getElementById("device-rows").innerHTML = devices.length
+      ? devices
+          .map(
+            (device) => `
+            <tr>
+              <td>${AlertBot.escapeHtml(device.label || "unnamed")}</td>
+              <td class="mono">${AlertBot.escapeHtml(device.platform)}</td>
+              <td class="mono dim">${AlertBot.escapeHtml(device.token_preview)}</td>
+              <td class="right"><button class="btn-sm" onclick="removeDevice(${device.id})">Remove</button></td>
+            </tr>`,
+          )
+          .join("")
+      : '<tr><td colspan="4" class="dim">No devices registered. The Android app registers itself on first launch.</td></tr>';
+  }
+
+  async function removeDevice(id) {
+    await AlertBot.api(`/api/settings/devices/${id}`, { method: "DELETE" });
+    loadDevices();
+  }
+
+  AlertBot.setLive("", "settings");
+  loadSettings();
+  loadRules();
+  loadUsers();
+  loadDevices();
+</script>
+{% endblock %}

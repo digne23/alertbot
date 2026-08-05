@@ -1,0 +1,55 @@
+{
+  "name": "AlertBot — On-call incidents",
+  "short_name": "AlertBot",
+  "description": "Incident detection and phone alarms for the ESICIA on-call engineer.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#080b11",
+  "theme_color": "#080b11",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/static/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Live incidents",
+      "url": "/",
+      "description": "Open incidents that need attention"
+    },
+    {
+      "name": "History",
+      "url": "/history",
+      "description": "Search past incidents"
+    },
+    {
+      "name": "Phone setup",
+      "url": "/setup",
+      "description": "Configure the alarm path"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{{ page_title }} · {{ app_name }}</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <meta name="theme-color" content="#080b11" />
+  </head>
+  <body>
+    <div style="display:grid; place-items:center; min-height:100vh; padding:24px">
+      <div style="text-align:center; max-width:420px">
+        <div class="brand-mark" style="margin:0 auto 18px; width:52px; height:52px; font-size:26px">🚨</div>
+        <h1 style="margin:0 0 8px">{{ page_title }}</h1>
+        <p class="muted">
+          AlertBot could not reach the server. Incidents are still being recorded
+          on the backend — this page will work again once you are back online.
+        </p>
+        <div class="row" style="justify-content:center; margin-top:18px">
+          <button class="btn-primary" onclick="location.href='/'">Back to dashboard</button>
+          <button onclick="location.reload()">Retry</button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

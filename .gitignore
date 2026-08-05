@@ -1,0 +1,24 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+alerts.db
+server.log
+
+# Firebase service account — private key, never commit.
+credentials/
+firebase.json
+
+# google-services.json holds only public client config and the Android build
+# needs it, so the copy inside the app module is committed on purpose.
+firebase/google-services.json
+!android/app/google-services.json
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+.idea/
+*.iml

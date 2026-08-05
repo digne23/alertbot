@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block topbar %}
+<button class="btn-sm" onclick="exportCsv()">⭳ Export CSV</button>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div class="panel-head">
+    <h2>Filters</h2>
+    <div class="spacer"></div>
+    <span class="muted mono" id="result-count"></span>
+  </div>
+  <div class="panel-body">
+    <div class="filters">
+      <input class="search" id="f-q" type="search" placeholder="Search service, provider, reason…" />
+      <select id="f-state">
+        <option value="ALL">All states</option>
+        <option value="OPEN">Open</option>
+        <option value="RESOLVED">Resolved</option>
+      </select>
+      <select id="f-provider"><option value="ALL">All providers</option></select>
+      <select id="f-ack">
+        <option value="">Ack: any</option>
+        <option value="true">Acknowledged</option>
+        <option value="false">Not acknowledged</option>
+      </select>
+      <label>From <input type="date" id="f-since" /></label>
+      <label>To <input type="date" id="f-until" /></label>
+      <button class="btn-sm" onclick="resetFilters()">Reset</button>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Incidents per day (last 7 days)</h2></div>
+  <div class="panel-body">
+    <div class="spark" id="spark"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Incident history</h2>
+    <div class="spacer"></div>
+    <button class="btn-sm" id="prev-page" onclick="changePage(-1)">← Prev</button>
+    <span class="muted mono" id="page-label">1</span>
+    <button class="btn-sm" id="next-page" onclick="changePage(1)">Next →</button>
+  </div>
+  <div class="panel-body tight">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Opened</th><th>Provider</th><th>Service</th>
+            <th>State</th><th>Reason</th><th>Events</th><th>Pushes</th><th>Ack</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr><td colspan="10" class="dim">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+  const PAGE_SIZE = 50;
+  let offset = 0;
+  let total = 0;
+
+  function filterParams() {
+    const params = new URLSearchParams();
+    const query = document.getElementById("f-q").value.trim();
+    if (query) params.set("q", query);
+    params.set("state", document.getElementById("f-state").value);
+    params.set("provider", document.getElementById("f-provider").value);
+    const ack = document.getElementById("f-ack").value;
+    if (ack) params.set("acknowledged", ack);
+    const since = document.getElementById("f-since").value;
+    if (since) params.set("since", since);
+    const until = document.getElementById("f-until").value;
+    if (until) params.set("until", until);
+    return params;
+  }
+
+  async function load() {
+    const params = filterParams();
+    params.set("limit", String(PAGE_SIZE));
+    params.set("offset", String(offset));
+
+    try {
+      const data = await AlertBot.api(`/api/incidents?${params}`);
+      total = data.total;
+
+      document.getElementById("result-count").textContent = `${total} incident(s)`;
+      document.getElementById("page-label").textContent =
+        `${Math.floor(offset / PAGE_SIZE) + 1} / ${Math.max(1, Math.ceil(total / PAGE_SIZE))}`;
+      document.getElementById("prev-page").disabled = offset === 0;
+      document.getElementById("next-page").disabled = offset + PAGE_SIZE >= total;
+
+      document.getElementById("rows").innerHTML = data.items.length
+        ? data.items
+            .map(
+              (incident) => `
+              <tr>
+                <td class="mono dim">${incident.id}</td>
+                <td class="mono nowrap">${AlertBot.formatTime(incident.created_at)}</td>
+                <td>${AlertBot.escapeHtml(incident.provider)}</td>
+                <td class="mono">${AlertBot.escapeHtml(incident.service)}</td>
+                <td>${AlertBot.stateBadges(incident)}</td>
+                <td>${AlertBot.escapeHtml((incident.reason || "").slice(0, 70))}</td>
+                <td class="mono">${incident.event_count}</td>
+                <td class="mono">${incident.notify_count}</td>
+                <td class="mono dim nowrap">${incident.acknowledged_at ? AlertBot.timeAgo(incident.acknowledged_at) : "—"}</td>
+                <td><a class="btn btn-sm btn-ghost" href="/incident/${incident.id}">Open</a></td>
+              </tr>`,
+            )
+            .join("")
+        : '<tr><td colspan="10" class="dim">No incidents match these filters.</td></tr>';
+
+      AlertBot.setLive("", `updated ${new Date().toLocaleTimeString()}`);
+    } catch (error) {
+      AlertBot.setLive("dead", "connection lost");
+    }
+  }
+
+  async function loadChart() {
+    try {
+      const stats = await AlertBot.api("/api/stats");
+      const max = Math.max(1, ...stats.per_day.map((entry) => entry.count));
+      document.getElementById("spark").innerHTML = stats.per_day.length
+        ? stats.per_day
+            .map(
+              (entry) =>
+                `<div style="height:${Math.round((entry.count / max) * 100)}%" title="${entry.count} on ${entry.day}"><span>${entry.day.slice(5)}</span></div>`,
+            )
+            .join("")
+        : '<div class="empty" style="padding:8px">No incidents in the last 7 days.</div>';
+    } catch (error) {
+      /* chart is decorative */
+    }
+  }
+
+  async function loadProviders() {
+    try {
+      const providers = await AlertBot.api("/api/providers");
+      const select = document.getElementById("f-provider");
+      select.innerHTML =
+        '<option value="ALL">All providers</option>' +
+        providers
+          .map((name) => `<option value="${AlertBot.escapeHtml(name)}">${AlertBot.escapeHtml(name)}</option>`)
+          .join("");
+    } catch (error) {
+      /* leave the default option */
+    }
+  }
+
+  function changePage(direction) {
+    offset = Math.max(0, offset + direction * PAGE_SIZE);
+    load();
+  }
+
+  function resetFilters() {
+    ["f-q", "f-since", "f-until"].forEach((id) => (document.getElementById(id).value = ""));
+    document.getElementById("f-state").value = "ALL";
+    document.getElementById("f-provider").value = "ALL";
+    document.getElementById("f-ack").value = "";
+    offset = 0;
+    load();
+  }
+
+  function exportCsv() {
+    window.location = `/api/incidents.csv?${filterParams()}`;
+  }
+
+  ["f-state", "f-provider", "f-ack", "f-since", "f-until"].forEach((id) =>
+    document.getElementById(id).addEventListener("change", () => {
+      offset = 0;
+      load();
+    }),
+  );
+
+  let searchTimer;
+  document.getElementById("f-q").addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      offset = 0;
+      load();
+    }, 300);
+  });
+
+  loadProviders();
+  loadChart();
+  AlertBot.every(30, load);
+</script>
+{% endblock %}

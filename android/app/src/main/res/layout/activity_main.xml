@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#080B11"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textColor="#E8EEF6"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/setup_intro"
+            android:textColor="#94A3B8"
+            android:textSize="14sp" />
+
+        <TextView
+            style="@style/AlertBot.Label"
+            android:text="@string/label_url" />
+
+        <EditText
+            android:id="@+id/input_url"
+            style="@style/AlertBot.Input"
+            android:hint="https://alertbot.onrender.com"
+            android:importantForAutofill="no"
+            android:inputType="textUri" />
+
+        <TextView
+            style="@style/AlertBot.Label"
+            android:text="@string/label_user" />
+
+        <EditText
+            android:id="@+id/input_user"
+            style="@style/AlertBot.Input"
+            android:hint="admin"
+            android:importantForAutofill="no"
+            android:inputType="text" />
+
+        <TextView
+            style="@style/AlertBot.Label"
+            android:text="@string/label_password" />
+
+        <EditText
+            android:id="@+id/input_password"
+            style="@style/AlertBot.Input"
+            android:importantForAutofill="no"
+            android:inputType="textPassword" />
+
+        <TextView
+            style="@style/AlertBot.Label"
+            android:text="@string/label_key" />
+
+        <EditText
+            android:id="@+id/input_key"
+            style="@style/AlertBot.Input"
+            android:importantForAutofill="no"
+            android:inputType="text" />
+
+        <Button
+            android:id="@+id/button_save"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:backgroundTint="#4C8DFF"
+            android:text="@string/save_register"
+            android:textColor="#FFFFFF" />
+
+        <Button
+            android:id="@+id/button_test"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:backgroundTint="#FF4D4F"
+            android:text="@string/preview_alarm"
+            android:textColor="#FFFFFF" />
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:textColor="#94A3B8"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="@string/setup_hint"
+            android:textColor="#64748B"
+            android:textSize="12sp" />
+    </LinearLayout>
+</ScrollView>

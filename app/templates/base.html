@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{{ page_title }} · {{ app_name }}</title>
+
+    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
+
+    <meta name="theme-color" content="#080b11" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="{{ app_name }}" />
+    <meta name="description" content="On-call incident management for ESICIA" />
+  </head>
+
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">🚨</div>
+          <div>
+            <div class="brand-name">{{ app_name }}</div>
+            <div class="brand-sub">On-call</div>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <a href="/" class="{{ 'active' if active == 'dashboard' }}">
+            <span class="nav-icon">◉</span> Live
+            <span class="nav-badge" id="nav-open-count"></span>
+          </a>
+          <a href="/history" class="{{ 'active' if active == 'history' }}">
+            <span class="nav-icon">▤</span> History
+          </a>
+          <a href="/settings" class="{{ 'active' if active == 'settings' }}">
+            <span class="nav-icon">⚙</span> Settings
+          </a>
+          <a href="/setup" class="{{ 'active' if active == 'setup' }}">
+            <span class="nav-icon">📱</span> Phone
+          </a>
+        </nav>
+
+        <div class="sidebar-foot">
+          <div id="channel-summary">Checking channels…</div>
+          <div>{{ 'Login required' if auth_enabled else 'No login configured' }}</div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <h1>{{ page_title }}</h1>
+          <div class="spacer"></div>
+          {% block topbar %}{% endblock %}
+          <div class="live-dot" id="live-indicator"><i></i><span>connecting…</span></div>
+        </header>
+
+        <div class="content">{% block content %}{% endblock %}</div>
+      </main>
+    </div>
+
+    <div class="toast-host"></div>
+
+    <script src="/static/app.js"></script>
+    <script>
+      // Keep the sidebar badge and channel summary current on every page.
+      async function refreshShell() {
+        try {
+          const stats = await AlertBot.api("/api/stats");
+          const badge = document.getElementById("nav-open-count");
+          if (badge) badge.textContent = stats.open ? String(stats.open) : "";
+
+          const summary = document.getElementById("channel-summary");
+          if (summary) {
+            const live = stats.channels.filter((channel) => channel.enabled);
+            summary.textContent = live.length
+              ? `Channels: ${live.map((channel) => channel.label).join(", ")}`
+              : "⚠ No notification channel enabled";
+          }
+        } catch (error) {
+          /* the page-level poll surfaces connection problems */
+        }
+      }
+      AlertBot.every(30, refreshShell);
+    </script>
+
+    {% block script %}{% endblock %}
+  </body>
+</html>

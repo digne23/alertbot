@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AlertBot</string>
+
+    <string name="setup_intro">Point this phone at your AlertBot server. Incidents will ring here until you acknowledge them.</string>
+    <string name="label_url">Backend URL</string>
+    <string name="label_user">Dashboard user (if login is enabled)</string>
+    <string name="label_password">Dashboard password</string>
+    <string name="label_key">Device registration key (optional)</string>
+
+    <string name="save_register">Save and register this phone</string>
+    <string name="preview_alarm">Preview the alarm</string>
+
+    <string name="not_configured">Not configured yet.</string>
+    <string name="no_token">Saved, but no push token registered yet.</string>
+    <string name="configured">Registered with %1$s</string>
+    <string name="registering">Registering…</string>
+    <string name="registered">Registered ✓\n%1$s</string>
+    <string name="register_failed">Registration failed. Check the URL and credentials.\n%1$s</string>
+    <string name="token_failed">Could not get a Firebase token: %1$s</string>
+    <string name="url_required">Enter the backend URL first.</string>
+
+    <string name="acknowledge">✓ ACKNOWLEDGE</string>
+    <string name="acknowledging">Acknowledging…</string>
+    <string name="ack_retry">Failed — tap to retry</string>
+    <string name="silence_here">Silence on this phone only</string>
+    <string name="silence_hint">Silencing does not acknowledge the incident — the server keeps escalating.</string>
+
+    <string name="preview_title">CRITICAL — test alarm</string>
+    <string name="preview_message">This is what a real incident looks like. Nothing was sent to the server.</string>
+
+    <string name="setup_hint">Battery settings → allow AlertBot to run unrestricted, and grant it Alarms &amp; reminders / Do Not Disturb access, or Android may silence it at night.</string>
+</resources>
