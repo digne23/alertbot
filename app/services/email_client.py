@@ -1,4 +1,5 @@
 import email
+import logging
 from email.header import decode_header
 from email.message import Message
 from email.utils import parsedate_to_datetime
@@ -7,6 +8,8 @@ from imapclient import IMAPClient
 from bs4 import BeautifulSoup
 
 from app.config import settings
+
+logger = logging.getLogger("alertbot.email")
 
 
 def _decode(value) -> str:
@@ -102,47 +105,115 @@ def test_connection() -> dict:
         return result
 
 
-def fetch_unseen_emails() -> list[dict]:
-    """Connect via IMAP, fetch unseen emails, mark them seen, return parsed dicts."""
+def _watermark_key(folder: str) -> str:
+    return f"mail.uid_watermark.{folder}"
+
+
+def _uidvalidity_key(folder: str) -> str:
+    return f"mail.uidvalidity.{folder}"
+
+
+def _parse_message(uid: int, data: dict) -> dict | None:
+    raw = data.get(b"RFC822")
+    if not raw:
+        return None
+
+    msg = email.message_from_bytes(raw)
+
+    received_at = None
+    try:
+        received_at = parsedate_to_datetime(msg.get("Date"))
+    except Exception:
+        received_at = data.get(b"INTERNALDATE")
+
+    return {
+        "uid": uid,
+        "message_id": (msg.get("Message-ID") or "").strip()[:250],
+        "sender": _decode(msg.get("From", "")),
+        "subject": _decode(msg.get("Subject", "")),
+        "body": _extract_body(msg),
+        "received_at": received_at,
+    }
+
+
+def fetch_new_emails() -> list[dict]:
+    """Return messages that have arrived since the last poll.
+
+    AlertBot keeps its own place in the mailbox using IMAP UIDs instead of the
+    unread flag, because this mailbox is also read by a human. Relying on
+    \\Seen would mean any alert opened on a phone first becomes invisible to
+    AlertBot — precisely the mail that must not be missed.
+
+    Consequences of the UID approach:
+      * reading mail yourself changes nothing
+      * AlertBot does not mark anything read (unless mail.mark_seen is on)
+      * on first run it starts from the newest message rather than replaying
+        the entire mailbox history
+    """
+    from app.services import settings_service
+
     if not settings.MAILBOX_EMAIL or not settings.MAILBOX_PASSWORD:
         return []
 
-    results = []
+    folder = settings.IMAP_FOLDER
+    results: list[dict] = []
 
     with IMAPClient(settings.IMAP_HOST, port=settings.IMAP_PORT, use_uid=True, ssl=True) as client:
         client.login(settings.MAILBOX_EMAIL, settings.MAILBOX_PASSWORD)
-        client.select_folder(settings.IMAP_FOLDER)
+        status = client.select_folder(folder)
 
-        uids = client.search(["UNSEEN"])
-        if not uids:
-            return []
+        uid_validity = status.get(b"UIDVALIDITY")
+        stored_validity = settings_service.get(_uidvalidity_key(folder))
+        watermark = settings_service.get(_watermark_key(folder)) or 0
 
-        response = client.fetch(uids, ["RFC822", "INTERNALDATE"])
+        try:
+            watermark = int(watermark)
+        except (TypeError, ValueError):
+            watermark = 0
 
-        for uid, data in response.items():
-            raw = data.get(b"RFC822")
-            if not raw:
-                continue
-            msg = email.message_from_bytes(raw)
+        # UIDVALIDITY changing means the server renumbered the folder; every
+        # stored UID is meaningless and we have to start over.
+        if stored_validity is not None and uid_validity != stored_validity:
+            logger.warning(
+                "UIDVALIDITY for %s changed (%s -> %s) — restarting from the newest message",
+                folder, stored_validity, uid_validity,
+            )
+            watermark = 0
 
-            sender = _decode(msg.get("From", ""))
-            subject = _decode(msg.get("Subject", ""))
-            body = _extract_body(msg)
+        if watermark <= 0:
+            # First run: process what is currently unread so a fresh install
+            # still reacts to an alert sitting in the mailbox, but do not drag
+            # in years of history.
+            uids = client.search(["UNSEEN"])
+            all_uids = client.search(["ALL"])
+            highest = max(all_uids) if all_uids else 0
+            logger.info(
+                "First poll of %s: %s unread message(s), starting UID watermark at %s",
+                folder, len(uids), highest,
+            )
+        else:
+            # '<n>:*' can return the last message even when its UID is lower,
+            # so filter client-side rather than trusting the range.
+            uids = [u for u in client.search(["UID", f"{watermark + 1}:*"]) if u > watermark]
+            highest = max(uids) if uids else watermark
 
-            received_at = None
-            try:
-                received_at = parsedate_to_datetime(msg.get("Date"))
-            except Exception:
-                received_at = data.get(b"INTERNALDATE")
+        if uids:
+            response = client.fetch(uids, ["RFC822", "INTERNALDATE"])
+            for uid, data in sorted(response.items()):
+                parsed = _parse_message(uid, data)
+                if parsed:
+                    results.append(parsed)
 
-            results.append({
-                "uid": uid,
-                "sender": sender,
-                "subject": subject,
-                "body": body,
-                "received_at": received_at,
-            })
+            if settings_service.get("mail.mark_seen"):
+                client.add_flags(uids, [b"\\Seen"])
 
-            client.add_flags(uid, [b"\\Seen"])
+        settings_service.set_many({
+            _watermark_key(folder): int(max(highest, watermark)),
+            _uidvalidity_key(folder): uid_validity,
+        })
 
     return results
+
+
+# Older name, kept so anything still calling it keeps working.
+fetch_unseen_emails = fetch_new_emails

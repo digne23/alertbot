@@ -1,7 +1,7 @@
 import logging
 
 from app.database import SessionLocal
-from app.services.email_client import fetch_unseen_emails
+from app.services.email_client import fetch_new_emails
 from app.services.rule_engine import is_critical
 from app.services.parsers import get_parser
 from app.services.incident_service import IncidentService
@@ -13,10 +13,10 @@ logger = logging.getLogger("alertbot.poller")
 
 def poll_once() -> dict:
     """Fetch unseen emails, classify, parse, and update incidents. Returns a summary."""
-    summary = {"fetched": 0, "critical": 0, "incidents_touched": 0, "error": None}
+    summary = {"fetched": 0, "critical": 0, "incidents_touched": 0, "skipped": 0, "error": None}
 
     try:
-        emails = fetch_unseen_emails()
+        emails = fetch_new_emails()
     except Exception as exc:
         logger.exception("Failed to fetch emails")
         summary["error"] = f"{type(exc).__name__}: {exc}"
@@ -32,6 +32,19 @@ def poll_once() -> dict:
             sender = item["sender"]
             subject = item["subject"]
             body = item["body"]
+            message_id = item.get("message_id") or ""
+
+            # Belt and braces: if the UID watermark is ever reset, the same
+            # message must not raise a second incident.
+            if message_id:
+                already = (
+                    db.query(EmailLog.id)
+                    .filter(EmailLog.message_id == message_id)
+                    .first()
+                )
+                if already:
+                    summary["skipped"] = summary.get("skipped", 0) + 1
+                    continue
 
             critical = is_critical(sender, subject, body)
 
@@ -41,6 +54,8 @@ def poll_once() -> dict:
                 body=body[:5000],
                 received_at=item.get("received_at"),
                 is_critical=critical,
+                message_id=message_id or None,
+                message_uid=item.get("uid"),
             )
 
             if critical:

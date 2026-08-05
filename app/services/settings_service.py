@@ -51,6 +51,11 @@ def defaults() -> dict:
         # Mailbox polling.
         "poll.interval_seconds": env.CHECK_INTERVAL,
         "poll.enabled": True,
+
+        # This mailbox is read by a human too, so AlertBot tracks its own
+        # position by IMAP UID and leaves the unread flag alone. Turn this on
+        # only for a dedicated mailbox nobody else opens.
+        "mail.mark_seen": False,
     }
 
 

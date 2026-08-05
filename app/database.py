@@ -36,6 +36,10 @@ _MIGRATIONS: dict[str, dict[str, str]] = {
         "escalated_at": "DATETIME",
         "silenced": "BOOLEAN DEFAULT 0",
     },
+    "email_logs": {
+        "message_id": "VARCHAR",
+        "message_uid": "INTEGER",
+    },
 }
 
 
