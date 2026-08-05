@@ -23,11 +23,17 @@ class IncidentService:
     # Creation / lifecycle
     # ------------------------------------------------------------------
     @classmethod
-    def create_incident(cls, db: Session, parsed: dict, source: str = "email") -> Incident:
+    def create_incident(cls, db: Session, parsed: dict, source: str = "email",
+                        reopen_on_repeat: bool = False) -> Incident:
         """Open, update or resolve an incident from a parsed alert.
 
         `parsed` is whatever a provider parser returned:
             {provider, service, state, severity, reason}
+
+        `reopen_on_repeat` un-acknowledges an already-acknowledged incident and
+        alerts again. Used by sources where a repeat event is genuinely new
+        information (a new WhatsApp message), rather than a monitor resending
+        the same DOWN alert.
         """
         provider = parsed.get("provider") or "Unknown"
         service = parsed.get("service") or "unknown-service"
@@ -37,7 +43,9 @@ class IncidentService:
 
         if state == "OPEN":
             if existing:
-                return cls._register_repeat_event(db, existing, parsed)
+                return cls._register_repeat_event(
+                    db, existing, parsed, reopen_on_repeat=reopen_on_repeat
+                )
             return cls._open_new(db, provider, service, parsed, source)
 
         return cls._resolve(db, existing, provider, service, parsed, source)
@@ -76,18 +84,36 @@ class IncidentService:
         return incident
 
     @classmethod
-    def _register_repeat_event(cls, db: Session, incident: Incident, parsed: dict) -> Incident:
-        """Another DOWN email for an incident that is already open.
+    def _register_repeat_event(cls, db: Session, incident: Incident, parsed: dict,
+                               reopen_on_repeat: bool = False) -> Incident:
+        """Another event for an incident that is already open.
 
         Deliberately does NOT notify: the escalation job owns the repeat alarm,
-        so a flapping monitor cannot machine-gun the phone.
+        so a flapping monitor cannot machine-gun the phone. The exception is
+        `reopen_on_repeat`, where the event is new information and the incident
+        has already been acknowledged — that has to ring again.
         """
         incident.event_count = (incident.event_count or 0) + 1
         incident.reason = parsed.get("reason") or incident.reason
         incident.updated_at = datetime.utcnow()
+
+        wake_again = reopen_on_repeat and (incident.acknowledged or incident.silenced)
+        if wake_again:
+            incident.acknowledged = False
+            incident.acknowledged_at = None
+            incident.silenced = False
+            incident.escalation_level = 0
+            incident.escalated_at = None
+
         db.commit()
         db.refresh(incident)
-        logger.info("Incident #%s repeat event (%s total)", incident.id, incident.event_count)
+
+        if wake_again:
+            logger.info("Incident #%s re-opened by a new event", incident.id)
+            notification_service.notify(incident, event="OPENED", db=db)
+        else:
+            logger.info("Incident #%s repeat event (%s total)", incident.id, incident.event_count)
+
         return incident
 
     @classmethod

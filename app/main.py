@@ -14,6 +14,7 @@ from app.api.incidents import router as incidents_router
 from app.api.test import router as test_router
 from app.api.settings import router as settings_router
 from app.api.devices import router as devices_router
+from app.api.ingest import router as ingest_router
 from app.services import notification_service
 
 logging.basicConfig(
@@ -41,6 +42,7 @@ app.include_router(incidents_router)
 app.include_router(test_router)
 app.include_router(settings_router)
 app.include_router(devices_router)
+app.include_router(ingest_router)
 
 
 def _page(request: Request, name: str, active: str, title: str):
@@ -106,6 +108,9 @@ def api_health(_=Depends(require_auth)):
         "mailbox_configured": bool(settings.GMAIL_EMAIL and settings.GMAIL_APP_PASSWORD),
         "channels": notification_service.channel_status(),
         "jobs": job_status(),
+        # Behind the dashboard login, so it is safe to hand to the setup page
+        # for building the phone's webhook URL.
+        "ingest_key": settings.DEVICE_REGISTRATION_KEY,
     }
 
 

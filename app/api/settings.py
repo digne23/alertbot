@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.rule import CriticalSender, CriticalKeyword
 from app.models.user import User
 from app.models.device import Device
+from app.models.watched_chat import WatchedChat
 from app.services import settings_service, rule_engine, notification_service
 from app import scheduler as scheduler_module
 
@@ -178,6 +179,93 @@ def delete_keyword(keyword_id: int, db: Session = Depends(get_db)):
     db.commit()
     rule_engine.invalidate()
     return {"ok": True}
+
+
+# ----------------------------------------------------------------------
+# Watched WhatsApp chats
+# ----------------------------------------------------------------------
+class ChatIn(BaseModel):
+    name: str
+    label: str | None = ""
+    keywords: str | None = ""
+    alarm: bool | None = True
+    enabled: bool | None = True
+
+
+def _serialize_chat(chat: WatchedChat) -> dict:
+    return {
+        "id": chat.id,
+        "name": chat.name,
+        "label": chat.label,
+        "keywords": chat.keywords,
+        "alarm": bool(chat.alarm),
+        "enabled": bool(chat.enabled),
+        "last_message_at": chat.last_message_at.isoformat() + "Z" if chat.last_message_at else None,
+    }
+
+
+@router.get("/chats")
+def list_chats(db: Session = Depends(get_db)):
+    return [_serialize_chat(c) for c in db.query(WatchedChat).order_by(WatchedChat.name).all()]
+
+
+@router.post("/chats")
+def add_chat(payload: ChatIn, db: Session = Depends(get_db)):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Chat name cannot be empty")
+    if db.query(WatchedChat).filter(WatchedChat.name == name).first():
+        raise HTTPException(status_code=409, detail="That chat is already watched")
+
+    chat = WatchedChat(
+        name=name,
+        label=payload.label or "",
+        keywords=payload.keywords or "",
+        alarm=bool(payload.alarm),
+        enabled=bool(payload.enabled),
+    )
+    db.add(chat)
+    db.commit()
+    db.refresh(chat)
+    return _serialize_chat(chat)
+
+
+@router.put("/chats/{chat_id}")
+def update_chat(chat_id: int, payload: ChatIn, db: Session = Depends(get_db)):
+    chat = db.query(WatchedChat).filter(WatchedChat.id == chat_id).first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    chat.name = payload.name.strip() or chat.name
+    chat.label = payload.label or ""
+    chat.keywords = payload.keywords or ""
+    chat.alarm = bool(payload.alarm)
+    chat.enabled = bool(payload.enabled)
+    db.commit()
+    db.refresh(chat)
+    return _serialize_chat(chat)
+
+
+@router.delete("/chats/{chat_id}")
+def delete_chat(chat_id: int, db: Session = Depends(get_db)):
+    chat = db.query(WatchedChat).filter(WatchedChat.id == chat_id).first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    db.delete(chat)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/chats/simulate")
+def simulate_chat_message(payload: dict, db: Session = Depends(get_db)):
+    """Dry-run a WhatsApp message the same way the phone would send it."""
+    from app.services import whatsapp_service
+
+    return whatsapp_service.handle_message(
+        db,
+        chat=payload.get("chat", ""),
+        message=payload.get("message", ""),
+        sender=payload.get("sender", ""),
+    )
 
 
 # ----------------------------------------------------------------------

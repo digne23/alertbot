@@ -100,6 +100,40 @@ Acknowledging, silencing or resolving stops it immediately.
 
 ---
 
+## WhatsApp chats as an incident source
+
+WhatsApp has no official way to read chats you are already in — Meta's Cloud API
+only delivers messages sent *to a business number you own*. So the phone does the
+reading: a MacroDroid macro triggers on the WhatsApp notification and forwards it
+to AlertBot, which decides whether it matters.
+
+```
+WhatsApp notification → MacroDroid → GET /api/ingest/whatsapp
+    → watched-chat match → IncidentService.create_incident() → alarm
+```
+
+Nothing is linked to your WhatsApp account and no third party sees the messages.
+
+1. **Settings → WhatsApp chats:** add the chat titles exactly as WhatsApp shows
+   them. Matching is case-insensitive and partial, so `Ops Team` also catches
+   `Ops Team (3 messages)`. Leave keywords empty to alarm on every message, or
+   list words (`down, urgent`) to ignore chit-chat.
+2. **MacroDroid macro:** trigger on *Notification Received* from WhatsApp, action
+   *HTTP Request (GET)* with URL encoding on:
+   ```
+   {PUBLIC_URL}/api/ingest/whatsapp?key={DEVICE_REGISTRATION_KEY}&chat={not_title}&message={not_text}
+   ```
+   `/setup` renders this with your real key filled in, ready to copy.
+3. **Test it** from Settings without waiting for a message.
+
+Incidents show up with provider `WhatsApp` and the chat as the service, so they
+filter and export like any other incident. A new message in a chat whose incident
+was already acknowledged re-opens it and rings again — unlike a monitor resending
+the same DOWN alert, a new message is new information.
+
+Caveat: this runs on the phone, so it needs the phone awake, online, and able to
+reach AlertBot. On localhost that means the same Wi-Fi and your PC's LAN address.
+
 ## Install the dashboard as an app (PWA)
 
 - **Android/Chrome:** ⋮ → Add to Home screen.
@@ -174,6 +208,7 @@ you can retune the system without a redeploy. See `.env.example` for every key.
 | GET/PUT | `/api/settings` | runtime configuration |
 | CRUD | `/api/settings/{senders,keywords,users,devices}` | rules and people |
 | POST | `/api/settings/test-notification` | fire a test push |
+| GET/POST | `/api/ingest/whatsapp` | inbound WhatsApp message from the phone |
 | POST/DELETE | `/api/devices` | Android token registration |
 | GET | `/healthz` | unauthenticated uptime probe |
 
@@ -217,8 +252,9 @@ render.yaml  Dockerfile  Procfile  requirements.txt
 
 ## Still open
 
-- WhatsApp / Slack / SMS / email notifiers (the interface is ready; nobody has
-  written the providers).
+- Outbound WhatsApp / Slack / SMS / email notifiers. WhatsApp currently works as
+  an *input* source only; sending alerts out over WhatsApp needs a Business API
+  number. The notifier interface is ready.
 - Per-user routing and on-call rotation — the `users` table exists and the
   Settings page edits it, but every enabled channel still notifies everyone.
 - Zabbix and UptimeRobot parsers.

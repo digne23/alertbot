@@ -137,8 +137,99 @@ Notification → Display Notification
   </div>
 </div>
 
+<div class="panel" id="whatsapp">
+  <div class="panel-head">
+    <h2>3 · WhatsApp chats → incidents</h2>
+    <div class="spacer"></div>
+    <a class="btn btn-sm btn-ghost" href="/settings">Manage watched chats →</a>
+  </div>
+  <div class="panel-body">
+    <div class="banner info" style="margin-top:0">
+      <span>ℹ️</span>
+      <div class="grow">
+        WhatsApp has no official way to read chats you are already in. So the
+        phone does the reading: MacroDroid watches the WhatsApp notification for
+        the chats you list, and forwards it to AlertBot. Nothing is linked to
+        your WhatsApp account, and no third-party service sees your messages.
+      </div>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>List the chats in Settings</h3>
+          <p>
+            Add the exact chat titles as WhatsApp shows them. Partial titles
+            match, so "Ops Team" also catches "Ops Team (3 messages)".
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>New macro: <code>AlertBot WhatsApp</code></h3>
+          <p>
+            Trigger → <strong>Device Events → Notification → Notification Received</strong>.
+            Application: <strong>WhatsApp</strong>. Leave the text filter empty —
+            AlertBot decides which chats matter, so you edit the list in one place
+            instead of rebuilding the macro.
+          </p>
+          <p class="muted">
+            MacroDroid needs notification access: it will prompt the first time.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Action → <strong>HTTP Request (GET)</strong></h3>
+          <p>Paste this URL, and turn <strong>URL encode</strong> on:</p>
+          <div class="copy-row">
+            <span class="code" id="wa-url">…</span>
+            <button class="btn-sm" onclick="AlertBot.copy(document.getElementById('wa-url').textContent)">Copy</button>
+          </div>
+          <p style="margin-top:10px">
+            <code>{not_title}</code> and <code>{not_text}</code> are MacroDroid's
+            notification variables — if those names differ in your version, use the
+            magic-text picker (the <em>{}</em> button) and choose
+            <em>Notification Title</em> and <em>Notification Text</em>.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Check it without waiting for a message</h3>
+          <p>
+            Settings has a tester: type a chat title and a message and it runs the
+            exact same path. Or open this URL in the phone's browser:
+          </p>
+          <div class="copy-row">
+            <span class="code" id="wa-test-url">…</span>
+            <button class="btn-sm" onclick="AlertBot.copy(document.getElementById('wa-test-url').textContent)">Copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="banner warn" style="margin-bottom:0">
+      <span>⚠️</span>
+      <div class="grow">
+        This runs on your phone, so it only works while the phone is on and
+        online — and AlertBot must be reachable from it. On localhost that means
+        the same Wi-Fi and your PC's LAN address, which is the main reason to
+        deploy the backend somewhere permanent.
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="panel">
-  <div class="panel-head"><h2>3 · AlertBot Android app (Firebase)</h2></div>
+  <div class="panel-head"><h2>4 · AlertBot Android app (Firebase)</h2></div>
   <div class="panel-body">
     <p style="margin-top:0">
       The Kotlin app lives in <code>android/</code> in this repository. It receives
@@ -186,7 +277,7 @@ Notification → Display Notification
 </div>
 
 <div class="panel">
-  <div class="panel-head"><h2>4 · Install this dashboard as an app</h2></div>
+  <div class="panel-head"><h2>5 · Install this dashboard as an app</h2></div>
   <div class="panel-body">
     <p style="margin-top:0" class="muted">
       AlertBot is a PWA, so it installs on any phone without a store.
@@ -321,6 +412,24 @@ Notification → Display Notification
   }
 
   document.getElementById("backend-url").textContent = window.location.origin;
+
+  // The registration key doubles as the ingest key, so the macro URL is
+  // ready to paste rather than something to assemble by hand.
+  (async () => {
+    let key = "YOUR_DEVICE_REGISTRATION_KEY";
+    try {
+      const health = await AlertBot.api("/api/health");
+      if (health.ingest_key) key = health.ingest_key;
+    } catch (error) {
+      /* fall back to the placeholder */
+    }
+    const base = `${window.location.origin}/api/ingest/whatsapp`;
+    document.getElementById("wa-url").textContent =
+      `${base}?key=${key}&chat={not_title}&message={not_text}`;
+    document.getElementById("wa-test-url").textContent =
+      `${base}?key=${key}&chat=TEST&message=hello`;
+  })();
+
   newTopic();
   showCurrent();
   AlertBot.setLive("", "setup");

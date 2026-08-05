@@ -166,6 +166,59 @@
 
 <div class="panel">
   <div class="panel-head">
+    <h2>WhatsApp chats</h2>
+    <div class="spacer"></div>
+    <a class="btn btn-sm btn-ghost" href="/setup#whatsapp">Set up the phone macro →</a>
+  </div>
+  <div class="panel-body">
+    <p class="muted" style="margin-top:0; font-size:13.5px">
+      A message in one of these chats raises an incident and alarms exactly like a
+      Pingdom DOWN email. Match the chat title as WhatsApp shows it in the
+      notification — partial titles match, so "Ops Team" catches "Ops Team (3 messages)".
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Chat</th><th>Shown as</th><th>Only on keywords</th><th>Alarm</th><th>Last message</th><th></th></tr>
+        </thead>
+        <tbody id="chat-rows"><tr><td colspan="6" class="dim">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="form-grid" style="margin-top:16px">
+      <div class="field">
+        <label>Chat title in WhatsApp</label>
+        <input type="text" id="chat-name" placeholder="ESICIA NOC" />
+      </div>
+      <div class="field">
+        <label>Show as (optional)</label>
+        <input type="text" id="chat-label" placeholder="NOC group" />
+      </div>
+      <div class="field">
+        <label>Only alarm on these words (optional)</label>
+        <input type="text" id="chat-keywords" placeholder="down, urgent, critical" />
+        <span class="hint">Leave empty to alarm on every message.</span>
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <label class="row" style="gap:7px"><input type="checkbox" id="chat-alarm" checked /> Loud alarm</label>
+      <button class="btn-primary" onclick="addChat(this)">Add chat</button>
+    </div>
+
+    <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border-soft)">
+      <div class="row">
+        <input type="text" id="sim-chat" placeholder="Chat title" style="flex:1" />
+        <input type="text" id="sim-message" placeholder="Test message text" style="flex:2" />
+        <button onclick="simulateChat(this)">Test a message</button>
+      </div>
+      <div id="sim-result" style="margin-top:12px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
     <h2>Rule tester</h2>
     <div class="spacer"></div>
     <span class="muted" style="font-size:13px">Paste a real alert email and see what AlertBot would do.</span>
@@ -426,6 +479,89 @@
     button.disabled = false;
   }
 
+  // --------------------------------------------------- WhatsApp chats
+  async function loadChats() {
+    const chats = await AlertBot.api("/api/settings/chats");
+    document.getElementById("chat-rows").innerHTML = chats.length
+      ? chats
+          .map(
+            (chat) => `
+            <tr>
+              <td class="mono">${AlertBot.escapeHtml(chat.name)}</td>
+              <td>${AlertBot.escapeHtml(chat.label || "—")}</td>
+              <td class="mono dim">${AlertBot.escapeHtml(chat.keywords || "every message")}</td>
+              <td>${chat.alarm ? '<span class="badge open">loud</span>' : '<span class="badge muted">quiet</span>'}</td>
+              <td class="mono dim">${chat.last_message_at ? AlertBot.timeAgo(chat.last_message_at) : "never"}</td>
+              <td class="right"><button class="btn-sm" onclick="removeChat(${chat.id})">Remove</button></td>
+            </tr>`,
+          )
+          .join("")
+      : '<tr><td colspan="6" class="dim">No chats watched yet. Add the two you need to be woken for.</td></tr>';
+  }
+
+  async function addChat(button) {
+    const name = document.getElementById("chat-name").value.trim();
+    if (!name) return AlertBot.toast("Enter the chat title first", "err");
+    button.disabled = true;
+    try {
+      await AlertBot.api("/api/settings/chats", {
+        method: "POST",
+        body: {
+          name,
+          label: document.getElementById("chat-label").value.trim(),
+          keywords: document.getElementById("chat-keywords").value.trim(),
+          alarm: document.getElementById("chat-alarm").checked,
+        },
+      });
+      ["chat-name", "chat-label", "chat-keywords"].forEach(
+        (id) => (document.getElementById(id).value = ""),
+      );
+      AlertBot.toast("Chat added", "ok");
+      loadChats();
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.disabled = false;
+  }
+
+  async function removeChat(id) {
+    await AlertBot.api(`/api/settings/chats/${id}`, { method: "DELETE" });
+    loadChats();
+  }
+
+  async function simulateChat(button) {
+    button.disabled = true;
+    try {
+      const result = await AlertBot.api("/api/settings/chats/simulate", {
+        method: "POST",
+        body: {
+          chat: document.getElementById("sim-chat").value,
+          message: document.getElementById("sim-message").value,
+        },
+      });
+
+      const outcome = {
+        incident_created: ["ok", "Incident raised — the phone would ring"],
+        not_watched: ["info", "Chat is not on the watched list — ignored"],
+        no_keyword_match: ["info", "Watched chat, but no keyword matched — ignored"],
+      }[result.action] || ["info", result.action];
+
+      document.getElementById("sim-result").innerHTML = `
+        <div class="banner ${outcome[0] === "ok" ? "ok" : "info"}">
+          <span>${outcome[0] === "ok" ? "🚨" : "💤"}</span>
+          <div class="grow">
+            <strong>${AlertBot.escapeHtml(outcome[1])}</strong>
+            ${result.matched_keywords.length ? `<br />Matched: ${result.matched_keywords.map((word) => `<code>${AlertBot.escapeHtml(word)}</code>`).join(" ")}` : ""}
+            ${result.incident_id ? `<br /><a href="/incident/${result.incident_id}">Incident #${result.incident_id} →</a>` : ""}
+          </div>
+        </div>`;
+      loadChats();
+    } catch (error) {
+      AlertBot.toast(error.message, "err");
+    }
+    button.disabled = false;
+  }
+
   // ------------------------------------------------------------ users
   async function loadUsers() {
     const users = await AlertBot.api("/api/settings/users");
@@ -536,6 +672,7 @@
   AlertBot.setLive("", "settings");
   loadSettings();
   loadRules();
+  loadChats();
   loadUsers();
   loadDevices();
 </script>

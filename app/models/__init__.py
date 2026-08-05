@@ -5,6 +5,7 @@ from app.models.app_setting import AppSetting
 from app.models.notification_log import NotificationLog
 from app.models.device import Device
 from app.models.user import User
+from app.models.watched_chat import WatchedChat
 
 __all__ = [
     "Incident",
@@ -15,4 +16,5 @@ __all__ = [
     "NotificationLog",
     "Device",
     "User",
+    "WatchedChat",
 ]
