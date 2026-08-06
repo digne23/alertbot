@@ -249,13 +249,29 @@ Notification → Display Notification
       <div class="step">
         <span class="step-num"></span>
         <div>
-          <h3>Build the APK</h3>
+          <h3>Install the APK</h3>
+          {% if apk_available %}
+          <p>
+            Open this page <em>on the phone</em> and tap below. Android will ask
+            you to allow installs from unknown sources — that prompt is expected.
+          </p>
+          <p>
+            <a class="btn btn-primary" href="/static/alertbot.apk" download>Download alertbot.apk</a>
+          </p>
+          <p class="muted">
+            This build came from <strong>Actions → Build Android APK</strong>. To
+            refresh it, download the artifact again and drop the APK at
+            <code>app/static/alertbot.apk</code>.
+          </p>
+          {% else %}
           <p>
             Your PC can't run Android Studio, so build it in the cloud: the repo
             ships <code>.github/workflows/android.yml</code>. Push to GitHub, open
             <strong>Actions → Build Android APK</strong>, download the artifact and
-            install it on the Galaxy A15.
+            save the APK as <code>app/static/alertbot.apk</code> — a download
+            button will appear here.
           </p>
+          {% endif %}
         </div>
       </div>
       <div class="step">
@@ -278,6 +294,12 @@ Notification → Display Notification
         <div>
           <h3>Enable Firebase in Settings</h3>
           <p>Turn on the Firebase channel, then hit its Test button.</p>
+          <p class="muted">
+            Installing the APK is not enough on its own: the server can only push
+            to it once <code>credentials/firebase.json</code> (or
+            <code>FIREBASE_CREDENTIALS_JSON</code>) holds a service-account key
+            for the Firebase project. Until then ntfy is the channel that rings.
+          </p>
           <button onclick="testChannel('firebase', this)">Send Firebase test</button>
         </div>
       </div>

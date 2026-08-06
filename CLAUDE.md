@@ -100,12 +100,26 @@ The model uses **`state`**, never `status`.
 
 ## Running and testing
 
+On the Windows machine:
+
 ```
 .venv\Scripts\python run.py                  # binds 0.0.0.0 so the phone can reach it
 .venv\Scripts\python tools\selftest.py       # whole pipeline, offline, ~1 min
 .venv\Scripts\python tools\check_mailbox.py  # IMAP login, folders, unread count
 .venv\Scripts\python tools\scan_recent.py 100  # read-only: what would the rules do?
 ```
+
+In the Codespaces dev container, same scripts, `.venv/bin/python`:
+
+```
+.venv/bin/python run.py
+.venv/bin/python tools/selftest.py
+```
+
+**Always the venv interpreter, never a bare `python`.** The container has no
+`pip`, no `pip3`, no `python3 -m pip` and no system-level FastAPI — only
+`.venv` has the dependencies. The devcontainer's `postCreateCommand`
+(`pip install --user -r requirements.txt`) cannot succeed there.
 
 `selftest.py` points the channels at a throwaway localhost server, restores the
 real settings afterwards and deletes its own data. Run it after any change.
@@ -123,14 +137,36 @@ dedup, notification layer with three channels, repeat-until-acknowledged,
 escalation, WhatsApp ingest, dashboard, history/search/CSV, settings, PWA,
 optional auth, Android app source.
 
-Configured: mailbox `digne@esicia.rw` on `mail.esicia.rw:993` (connection
-verified), watched chats `esicia team` and `vubavuba africa`, dashboard auth on,
-`PUBLIC_URL` pointing at the LAN address `192.168.2.131:8000`.
+Configured and verified: mailbox `digne@esicia.rw` on `mail.esicia.rw:993`;
+**ntfy** on topic `alertbot-1javcgmgzg7e06` at `https://ntfy.sh`, priority 5,
+enabled — this is the channel that actually rings; watched chats `ESICIA Team`
+and `Vubavuba Africa` (added 2026-08-05, matching confirmed against a decorated
+Android title); dashboard auth on. `selftest.py` passes 39/39.
 
-**Blocking a working alarm:** no notification channel is configured yet. The
-user must install ntfy, subscribe to a topic and save it on `/setup`, and paste
-the MacroDroid webhook URL. Until then incidents are recorded silently — the
-dashboard shows a red banner saying so.
+Development moved to a **GitHub Codespace**, so `PUBLIC_URL` is now
+`https://super-duper-halibut-wwwqxxpqj7jfvj97-8000.app.github.dev`, not the old
+LAN address. That hostname dies with the Codespace.
+
+**Blocking the phone reaching the dashboard:** port 8000 is forwarded
+**private**, so every request 302s to a GitHub sign-in page — which a
+notification tap, the ntfy app and the APK can never satisfy. Fix in the VS Code
+PORTS panel → right-click 8000 → Port Visibility → Public. The
+`"visibility": "public"` line in `devcontainer.json` only applies at container
+creation, so it does not rescue an existing Codespace. `gh` is not installed.
+Test with `curl -o /dev/null -w "%{http_code}" $PUBLIC_URL/healthz` — 200
+public, 302 private. Note this does **not** block ntfy, which delivers via
+ntfy.sh and needs no inbound access.
+
+**Blocking the Android app:** the APK builds (CI was fixed in `b123d85`) and is
+served for sideloading at `/static/alertbot.apk`, offered as a download button
+on `/setup` when the file is present — it is gitignored, so a fresh clone falls
+back to build instructions. But the app is pure FCM and
+`credentials/firebase.json` does not exist, `FIREBASE_CREDENTIALS_JSON` is
+unset, `firebase.enabled` is false. **Installing it will never make the phone
+ring.** Only Steve can generate the service-account key from Firebase project
+`alertbot-c4dfd`. MacroDroid is likewise unconfigured (no webhook URL).
+
+`PHONE-SETUP.md` is the end-to-end wiring guide for all of the above.
 
 Not built: outbound WhatsApp/Slack/SMS/email notifiers (the interface is ready,
 one file each), per-user routing and on-call rotation (the `users` table and its
@@ -153,7 +189,11 @@ useless here: a sleeping AlertBot notices nothing.
   `credentials/firebase.json`. `android/app/google-services.json` is committed
   on purpose: it is public client config and the CI build needs it.
 - This machine cannot run Android Studio, so the APK is built by
-  `.github/workflows/android.yml`.
+  `.github/workflows/android.yml`. A step-level `if` may never reference the
+  `secrets` context — it fails the whole workflow at startup before any job
+  runs. Pass the secret through `env:` and test that instead (`b123d85`).
+- **The Codespace suspends after ~30 minutes idle**, and a suspended AlertBot
+  polls nothing. Same objection as a sleeping free tier.
 - Commands here are slow (a bare `import app.main` can take a minute). Prefer
   background execution with generous timeouts over assuming a hang.
 - Long terminal output gets truncated on the user's screen. Keep answers short

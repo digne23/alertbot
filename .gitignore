@@ -22,3 +22,9 @@ android/app/build/
 android/local.properties
 .idea/
 *.iml
+
+# Built APK, fetched from CI for sideloading — not source
+app/static/*.apk
+
+# Session scratch notes, not project documentation
+STATUS.md

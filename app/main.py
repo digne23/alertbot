@@ -1,5 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request, Depends
 from fastapi.responses import FileResponse, JSONResponse
@@ -45,7 +46,7 @@ app.include_router(devices_router)
 app.include_router(ingest_router)
 
 
-def _page(request: Request, name: str, active: str, title: str):
+def _page(request: Request, name: str, active: str, title: str, **extra):
     return templates.TemplateResponse(
         request,
         name,
@@ -54,6 +55,7 @@ def _page(request: Request, name: str, active: str, title: str):
             "active": active,
             "page_title": title,
             "auth_enabled": auth_enabled(),
+            **extra,
         },
     )
 
@@ -90,7 +92,16 @@ def settings_page(request: Request, _=Depends(require_auth)):
 
 @app.get("/setup")
 def setup_page(request: Request, _=Depends(require_auth)):
-    return _page(request, "setup.html", "setup", "Phone setup")
+    # A CI-built APK dropped into app/static is offered as a direct download,
+    # so the phone can sideload without a GitHub login. It is gitignored, so
+    # the button only appears where someone has actually fetched the build.
+    return _page(
+        request,
+        "setup.html",
+        "setup",
+        "Phone setup",
+        apk_available=Path("app/static/alertbot.apk").exists(),
+    )
 
 
 @app.get("/healthz")
