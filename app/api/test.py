@@ -37,7 +37,7 @@ SAMPLES = [
         "provider": "ESICIA Monitor",
         "service": "api.esicia.site",
         "severity": "Critical",
-        "reason": "Incident OPENED — Search String Missing",
+        "reason": "Incident OPENED: Search String Missing",
     },
     {
         "provider": "AOS",

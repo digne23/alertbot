@@ -97,6 +97,7 @@ def main() -> int:
         db.close()
 
     keys = ("notifications.enabled", "notifications.notify_on_resolve",
+            "notifications.window_enabled",
             "ntfy.enabled", "ntfy.server", "ntfy.topic", "ntfy.token",
             "macrodroid.enabled", "macrodroid.webhook_url", "firebase.enabled",
             "escalation.enabled", "escalation.repeat_minutes")
@@ -110,6 +111,10 @@ def main() -> int:
         settings_service.set_many({
             "notifications.enabled": True,
             "notifications.notify_on_resolve": True,
+            # This suite proves the delivery path works, not the on-call
+            # schedule, so it must not depend on the wall clock. Quiet hours
+            # are covered by their own unit checks.
+            "notifications.window_enabled": False,
             "ntfy.enabled": True,
             "ntfy.server": mock,
             "ntfy.topic": "selftest",

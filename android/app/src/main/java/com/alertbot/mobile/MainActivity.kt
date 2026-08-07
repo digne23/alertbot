@@ -21,6 +21,7 @@ import com.alertbot.mobile.ui.AlarmSetupScreen
 import com.alertbot.mobile.ui.AlertsScreen
 import com.alertbot.mobile.ui.IncidentDetailScreen
 import com.alertbot.mobile.ui.SignInScreen
+import com.alertbot.mobile.ui.SplashScreen
 import com.alertbot.mobile.ui.theme.AlertBotTheme
 
 /**
@@ -29,6 +30,7 @@ import com.alertbot.mobile.ui.theme.AlertBotTheme
  * product has screens.
  */
 private sealed interface Route {
+    data object Splash : Route
     data object SignIn : Route
     data object Setup : Route
     data object Alerts : Route
@@ -60,13 +62,24 @@ class MainActivity : ComponentActivity() {
 private fun AlertBotRoot(openIncidentId: Int) {
     val context = LocalContext.current
 
+    // Where the splash hands off to. Recomputed on use rather than captured,
+    // because signing in changes the answer.
+    fun landing(): Route = when {
+        !context.isSignedIn -> Route.SignIn
+        !context.setupSeen -> Route.Setup
+        openIncidentId > 0 -> Route.Detail(openIncidentId)
+        else -> Route.Alerts
+    }
+
     var route by remember {
         mutableStateOf(
-            when {
-                !context.isSignedIn -> Route.SignIn
-                !context.setupSeen -> Route.Setup
-                openIncidentId > 0 -> Route.Detail(openIncidentId)
-                else -> Route.Alerts
+            // Tapping a notification jumps straight to the alert. Someone
+            // reaching for their phone at 3am should not be shown a logo
+            // first — the splash is for a cold open, not for an emergency.
+            if (openIncidentId > 0 && context.isSignedIn && context.setupSeen) {
+                Route.Detail(openIncidentId)
+            } else {
+                Route.Splash
             }
         )
     }
@@ -77,6 +90,8 @@ private fun AlertBotRoot(openIncidentId: Int) {
     }
 
     when (val current = route) {
+        is Route.Splash -> SplashScreen(onDone = { route = landing() })
+
         is Route.SignIn -> SignInScreen(
             onSignedIn = { warning ->
                 warningRes = warning

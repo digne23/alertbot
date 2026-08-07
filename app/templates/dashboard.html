@@ -1,9 +1,15 @@
 {% extends "base.html" %}
 
 {% block topbar %}
-<button class="btn-sm" onclick="AlertBot.askPermission()">🔔 Enable alerts</button>
-<button class="btn-sm" onclick="pollNow(this)">📥 Poll now</button>
-<button class="btn-sm btn-danger" onclick="testAlert(this)">🚨 Test alert</button>
+<button class="btn-sm" onclick="AlertBot.askPermission()">
+  <svg class="ic" aria-hidden="true"><use href="#i-bell-active" /></svg> Enable alerts
+</button>
+<button class="btn-sm" onclick="pollNow(this)">
+  <svg class="ic" aria-hidden="true"><use href="#i-refresh" /></svg> Poll now
+</button>
+<button class="btn-sm btn-danger" onclick="testAlert(this)">
+  <svg class="ic" aria-hidden="true"><use href="#i-warning" /></svg> Test alert
+</button>
 {% endblock %}
 
 {% block content %}
@@ -39,7 +45,7 @@
 
 <div class="panel">
   <div class="panel-head">
-    <h2>Active incidents</h2>
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-warning" /></svg> Active incidents</h2>
     <div class="spacer"></div>
     <div class="filters">
       <input class="search" id="filter-q" type="search" placeholder="Search service, provider, reason…" />
@@ -59,7 +65,9 @@
 
 <div class="split">
   <div class="panel">
-    <div class="panel-head"><h2>Notification log</h2></div>
+    <div class="panel-head">
+      <h2><svg class="ic" aria-hidden="true"><use href="#i-bell" /></svg> Notification log</h2>
+    </div>
     <div class="panel-body tight">
       <div class="table-wrap">
         <table>
@@ -75,7 +83,9 @@
   </div>
 
   <div class="panel">
-    <div class="panel-head"><h2>Incoming messages</h2></div>
+    <div class="panel-head">
+      <h2><svg class="ic" aria-hidden="true"><use href="#i-mail" /></svg> Incoming messages</h2>
+    </div>
     <div class="panel-body tight">
       <div class="table-wrap">
         <table>
@@ -109,19 +119,23 @@
     if (incident.state === "OPEN") {
       if (!incident.acknowledged) {
         actions.push(
-          `<button class="btn-ack btn-sm" onclick="ack(${incident.id}, this)">✓ Acknowledge</button>`,
+          `<button class="btn-ack btn-sm" onclick="ack(${incident.id}, this)">${AlertBot.icon("check")} Acknowledge</button>`,
         );
         actions.push(
           `<button class="btn-sm" onclick="silence(${incident.id}, ${!incident.silenced}, this)">${
-            incident.silenced ? "🔔 Unsilence" : "🔕 Silence"
+            incident.silenced
+              ? `${AlertBot.icon("bell")} Unsilence`
+              : `${AlertBot.icon("bell-off")} Silence`
           }</button>`,
         );
       }
       actions.push(
-        `<button class="btn-sm" onclick="resolveIncident(${incident.id}, this)">Close incident</button>`,
+        `<button class="btn-sm" onclick="resolveIncident(${incident.id}, this)">${AlertBot.icon("check-circle")} Close incident</button>`,
       );
     }
-    actions.push(`<a class="btn btn-sm btn-ghost" href="/incident/${incident.id}">Details →</a>`);
+    actions.push(
+      `<a class="btn btn-sm btn-ghost" href="/incident/${incident.id}">Details ${AlertBot.icon("arrow-right")}</a>`,
+    );
 
     return `
       <article class="${classes}">
@@ -158,7 +172,7 @@
       const list = document.getElementById("incident-list");
 
       if (!data.items.length) {
-        list.innerHTML = `<div class="empty"><span class="big">🛡️</span>Nothing burning. AlertBot is watching the mailbox.</div>`;
+        list.innerHTML = `<div class="empty"><span class="big">${AlertBot.icon("shield", "ic-xl")}</span>Nothing burning. AlertBot is watching the mailbox.</div>`;
       } else {
         list.innerHTML = data.items.map(incidentCard).join("");
       }
@@ -196,9 +210,9 @@
       const live = stats.channels.filter((channel) => channel.enabled);
       warning.innerHTML = live.length
         ? ""
-        : `<div class="banner danger"><span>⚠️</span><div class="grow"><strong>No notification channel is enabled.</strong><br />
+        : `<div class="banner danger">${AlertBot.icon("warning")}<div class="grow"><strong>No notification channel is enabled.</strong><br />
              Incidents are being recorded, but nothing will wake anyone up.
-             <a href="/setup">Set up your phone →</a></div></div>`;
+             <a href="/setup">Open the Phone page →</a></div></div>`;
     } catch (error) {
       /* handled by the incident poll */
     }
@@ -219,7 +233,11 @@
                 <td class="mono dim nowrap">${AlertBot.timeAgo(row.created_at)}</td>
                 <td class="mono">${AlertBot.escapeHtml(row.provider)}</td>
                 <td><span class="badge ${row.event === "RESOLVED" ? "resolved" : "open"}">${AlertBot.escapeHtml(row.event)}</span></td>
-                <td class="mono">${row.success ? '<span style="color:var(--green)">✓ sent</span>' : `<span style="color:var(--red)" title="${AlertBot.escapeHtml(row.detail)}">✗ failed</span>`}</td>
+                <td class="mono">${
+                  row.success
+                    ? `<span class="result-ok">${AlertBot.icon("check", "ic-sm")}sent</span>`
+                    : `<span class="result-fail" title="${AlertBot.escapeHtml(row.detail)}">${AlertBot.icon("close", "ic-sm")}failed</span>`
+                }</td>
               </tr>`,
             )
             .join("")
@@ -246,6 +264,7 @@
   async function ack(id, button) {
     button.disabled = true;
     button.textContent = "Acknowledging…";
+    // The card is re-rendered by refreshAll() below, so the icon comes back.
     try {
       await AlertBot.api(`/api/incidents/${id}/ack`, { method: "POST" });
       AlertBot.toast(`Incident #${id} acknowledged — alarm stopped`, "ok");

@@ -1,15 +1,30 @@
 {% extends "base.html" %}
 
 {% block topbar %}
-<button class="btn-sm btn-primary" onclick="saveSettings(this)">💾 Save settings</button>
+<button class="btn-sm btn-primary" onclick="saveSettings(this)">
+  <svg class="ic" aria-hidden="true"><use href="#i-save" /></svg> Save settings
+</button>
 {% endblock %}
 
 {% block content %}
+<div class="banner info">
+  <svg class="ic" aria-hidden="true"><use href="#i-info" /></svg>
+  <div class="grow">
+    <strong>Administrator settings.</strong>
+    The channels below are how AlertBot reaches the on-call phone. Staff never
+    configure any of this — they install the app, sign in with their name and
+    PIN, and it registers itself.
+  </div>
+</div>
+
 <div class="panel">
   <div class="panel-head">
-    <h2>Notification channels</h2>
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-bell-active" /></svg> Notification channels</h2>
+    <span class="admin-tag">Admin</span>
     <div class="spacer"></div>
-    <button class="btn-sm btn-danger" onclick="testNotification(null, this)">🔔 Test all channels</button>
+    <button class="btn-sm btn-danger" onclick="testNotification(null, this)">
+      <svg class="ic" aria-hidden="true"><use href="#i-play" /></svg> Test all channels
+    </button>
   </div>
   <div class="panel-body">
     <div class="switch-row">
@@ -26,15 +41,57 @@
         <div class="sub">Send a low-priority push when a service comes back up.</div>
       </div>
     </div>
+    <div class="switch-row">
+      <input type="checkbox" id="notifications.window_enabled" />
+      <div class="grow">
+        <div class="title">Only ring during on-call hours</div>
+        <div class="sub" id="window-status">
+          Outside these hours incidents are still recorded and still show on the
+          dashboard — the phone just stays quiet.
+        </div>
+      </div>
+    </div>
+    <div class="form-grid" style="margin-top:12px">
+      <div class="field">
+        <label>Start hour (24h)</label>
+        <input type="number" id="notifications.window_start_hour" min="0" max="23" />
+        <span class="hint">Inclusive. 0 = midnight.</span>
+      </div>
+      <div class="field">
+        <label>End hour (24h)</label>
+        <input type="number" id="notifications.window_end_hour" min="0" max="23" />
+        <span class="hint">Exclusive. 6 = stops at 06:00. A window may cross midnight.</span>
+      </div>
+      <div class="field">
+        <label>Hours ahead of UTC</label>
+        <input type="number" id="notifications.window_utc_offset_hours" min="-12" max="14" />
+        <span class="hint">Kigali is 2. The server stores UTC, so this makes the hours local.</span>
+      </div>
+    </div>
+    <div class="banner warn" style="margin:14px 0 0">
+      <svg class="ic" aria-hidden="true"><use href="#i-warning" /></svg>
+      <div class="grow">
+        With a window set, a daytime outage raises an incident but wakes nobody
+        until the window opens. Anything still unacknowledged then starts
+        alarming. The test buttons ignore the window so they always ring.
+      </div>
+    </div>
 
-    <h3 style="margin:22px 0 6px; font-size:15px">ntfy</h3>
+    <div class="section-head">
+      <svg class="ic" aria-hidden="true"><use href="#i-bell" /></svg> ntfy
+    </div>
     <div class="switch-row">
       <input type="checkbox" id="ntfy.enabled" />
       <div class="grow">
         <div class="title">Use ntfy</div>
-        <div class="sub">Free push to the ntfy app. No Android build needed.</div>
+        <div class="sub">
+          Admin fallback channel — an admin phone running the ntfy app. Staff on
+          the AlertBot app do not need it.
+        </div>
       </div>
-      <button class="btn-sm" onclick="testNotification('ntfy', this)">Test</button>
+      <button class="btn-sm" onclick="testNotification('ntfy', this)">
+        <svg class="ic" aria-hidden="true"><use href="#i-play" /></svg> Test
+      </button>
     </div>
     <div class="form-grid" style="margin-top:12px">
       <div class="field">
@@ -57,28 +114,40 @@
       </div>
     </div>
 
-    <h3 style="margin:22px 0 6px; font-size:15px">MacroDroid</h3>
+    <div class="section-head">
+      <svg class="ic" aria-hidden="true"><use href="#i-phone" /></svg> MacroDroid
+    </div>
     <div class="switch-row">
       <input type="checkbox" id="macrodroid.enabled" />
       <div class="grow">
         <div class="title">Use MacroDroid webhook</div>
-        <div class="sub">Fires a macro on the phone: max volume, siren, override DND.</div>
+        <div class="sub">
+          Admin-built macro on a dedicated phone: max volume, siren, override DND.
+        </div>
       </div>
-      <button class="btn-sm" onclick="testNotification('macrodroid', this)">Test</button>
+      <button class="btn-sm" onclick="testNotification('macrodroid', this)">
+        <svg class="ic" aria-hidden="true"><use href="#i-play" /></svg> Test
+      </button>
     </div>
     <div class="field" style="margin-top:12px">
       <label>Webhook URL</label>
       <input type="text" id="macrodroid.webhook_url" placeholder="https://trigger.macrodroid.com/xxxx/alertbot" />
     </div>
 
-    <h3 style="margin:22px 0 6px; font-size:15px">Firebase Cloud Messaging</h3>
+    <div class="section-head">
+      <svg class="ic" aria-hidden="true"><use href="#i-cloud" /></svg> Firebase Cloud Messaging
+    </div>
     <div class="switch-row">
       <input type="checkbox" id="firebase.enabled" />
       <div class="grow">
         <div class="title">Use Firebase</div>
-        <div class="sub" id="firebase-status">For the AlertBot Android app.</div>
+        <div class="sub" id="firebase-status">
+          The channel the staff AlertBot app uses. Devices below register themselves.
+        </div>
       </div>
-      <button class="btn-sm" onclick="testNotification('firebase', this)">Test</button>
+      <button class="btn-sm" onclick="testNotification('firebase', this)">
+        <svg class="ic" aria-hidden="true"><use href="#i-play" /></svg> Test
+      </button>
     </div>
     <div class="table-wrap" style="margin-top:12px">
       <table>
@@ -90,7 +159,10 @@
 </div>
 
 <div class="panel">
-  <div class="panel-head"><h2>Escalation</h2></div>
+  <div class="panel-head">
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-escalate" /></svg> Escalation</h2>
+    <span class="admin-tag">Admin</span>
+  </div>
   <div class="panel-body">
     <div class="switch-row">
       <input type="checkbox" id="escalation.enabled" />
@@ -119,9 +191,12 @@
 
 <div class="panel">
   <div class="panel-head">
-    <h2>Mailbox polling</h2>
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-mail" /></svg> Mailbox polling</h2>
+    <span class="admin-tag">Admin</span>
     <div class="spacer"></div>
-    <button class="btn-sm" onclick="testMailbox(this)">🔌 Test connection</button>
+    <button class="btn-sm" onclick="testMailbox(this)">
+      <svg class="ic" aria-hidden="true"><use href="#i-server" /></svg> Test connection
+    </button>
   </div>
   <div class="panel-body">
     <div class="switch-row">
@@ -146,7 +221,9 @@
 
 <div class="split">
   <div class="panel">
-    <div class="panel-head"><h2>Critical senders</h2></div>
+    <div class="panel-head">
+      <h2><svg class="ic" aria-hidden="true"><use href="#i-at" /></svg> Critical senders</h2>
+    </div>
     <div class="panel-body">
       <p class="muted" style="margin-top:0; font-size:13.5px">
         Mail is only considered an alert when it comes from one of these.
@@ -154,13 +231,17 @@
       <div class="chip-list" id="sender-list"></div>
       <div class="row" style="margin-top:14px">
         <input type="text" id="new-sender" placeholder="alert@pingdom.com" style="flex:1" />
-        <button class="btn-primary" onclick="addSender(this)">Add</button>
+        <button class="btn-primary" onclick="addSender(this)">
+          <svg class="ic" aria-hidden="true"><use href="#i-add" /></svg> Add
+        </button>
       </div>
     </div>
   </div>
 
   <div class="panel">
-    <div class="panel-head"><h2>Critical keywords</h2></div>
+    <div class="panel-head">
+      <h2><svg class="ic" aria-hidden="true"><use href="#i-tag" /></svg> Critical keywords</h2>
+    </div>
     <div class="panel-body">
       <p class="muted" style="margin-top:0; font-size:13.5px">
         Matched on whole words, so "up" never matches "support".
@@ -168,7 +249,9 @@
       <div class="chip-list" id="keyword-list"></div>
       <div class="row" style="margin-top:14px">
         <input type="text" id="new-keyword" placeholder="unreachable" style="flex:1" />
-        <button class="btn-primary" onclick="addKeyword(this)">Add</button>
+        <button class="btn-primary" onclick="addKeyword(this)">
+          <svg class="ic" aria-hidden="true"><use href="#i-add" /></svg> Add
+        </button>
       </div>
     </div>
   </div>
@@ -176,9 +259,12 @@
 
 <div class="panel">
   <div class="panel-head">
-    <h2>WhatsApp chats</h2>
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-forum" /></svg> WhatsApp chats</h2>
+    <span class="admin-tag">Admin</span>
     <div class="spacer"></div>
-    <a class="btn btn-sm btn-ghost" href="/setup#whatsapp">Set up the phone macro →</a>
+    <a class="btn btn-sm btn-ghost" href="/setup#whatsapp">
+      Set up the phone macro <svg class="ic" aria-hidden="true"><use href="#i-arrow-right" /></svg>
+    </a>
   </div>
   <div class="panel-body">
     <p class="muted" style="margin-top:0; font-size:13.5px">
@@ -213,14 +299,18 @@
     </div>
     <div class="row" style="margin-top:14px">
       <label class="row" style="gap:7px"><input type="checkbox" id="chat-alarm" checked /> Loud alarm</label>
-      <button class="btn-primary" onclick="addChat(this)">Add chat</button>
+      <button class="btn-primary" onclick="addChat(this)">
+        <svg class="ic" aria-hidden="true"><use href="#i-add" /></svg> Add chat
+      </button>
     </div>
 
-    <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border-soft)">
+    <div style="margin-top:22px; padding-top:18px; border-top:1px solid var(--line-soft)">
       <div class="row">
         <input type="text" id="sim-chat" placeholder="Chat title" style="flex:1" />
         <input type="text" id="sim-message" placeholder="Test message text" style="flex:2" />
-        <button onclick="simulateChat(this)">Test a message</button>
+        <button onclick="simulateChat(this)">
+          <svg class="ic" aria-hidden="true"><use href="#i-play" /></svg> Test a message
+        </button>
       </div>
       <div id="sim-result" style="margin-top:12px"></div>
     </div>
@@ -229,7 +319,7 @@
 
 <div class="panel">
   <div class="panel-head">
-    <h2>Rule tester</h2>
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-rules" /></svg> Rule tester</h2>
     <div class="spacer"></div>
     <span class="muted" style="font-size:13px">Paste a real alert email and see what AlertBot would do.</span>
   </div>
@@ -249,7 +339,9 @@
       <textarea id="test-body" placeholder="HTTP Server Error 503 Service Unavailable"></textarea>
     </div>
     <div class="row" style="margin-top:12px">
-      <button class="btn-primary" onclick="runRuleTest(this)">Test rules</button>
+      <button class="btn-primary" onclick="runRuleTest(this)">
+        <svg class="ic" aria-hidden="true"><use href="#i-play" /></svg> Test rules
+      </button>
       <label class="row" style="gap:7px">
         <input type="checkbox" id="test-create" /> Actually create the incident
       </label>
@@ -260,9 +352,11 @@
 
 <div class="panel">
   <div class="panel-head">
-    <h2>On-call users</h2>
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-group" /></svg> On-call users</h2>
     <div class="spacer"></div>
-    <button class="btn-sm btn-primary" onclick="openUserForm()">+ Add user</button>
+    <button class="btn-sm btn-primary" onclick="openUserForm()">
+      <svg class="ic" aria-hidden="true"><use href="#i-add" /></svg> Add user
+    </button>
   </div>
   <div class="panel-body tight">
     <div class="table-wrap">
@@ -273,7 +367,7 @@
         <tbody id="user-rows"><tr><td colspan="8" class="dim">Loading…</td></tr></tbody>
       </table>
     </div>
-    <div id="user-form" style="display:none; padding:18px; border-top:1px solid var(--border-soft)">
+    <div id="user-form" style="display:none; padding:20px; border-top:1px solid var(--line-soft)">
       <div class="form-grid">
         <div class="field"><label>Name</label><input type="text" id="u-name" /></div>
         <div class="field"><label>Email</label><input type="email" id="u-email" /></div>
@@ -295,7 +389,9 @@
         <label class="row" style="gap:7px"><input type="checkbox" id="u-active" checked /> Active</label>
       </div>
       <div class="row" style="margin-top:14px">
-        <button class="btn-primary" onclick="saveUser(this)">Save user</button>
+        <button class="btn-primary" onclick="saveUser(this)">
+          <svg class="ic" aria-hidden="true"><use href="#i-save" /></svg> Save user
+        </button>
         <button onclick="closeUserForm()">Cancel</button>
       </div>
     </div>
@@ -308,6 +404,7 @@
   const BOOLEAN_KEYS = [
     "notifications.enabled",
     "notifications.notify_on_resolve",
+    "notifications.window_enabled",
     "ntfy.enabled",
     "macrodroid.enabled",
     "firebase.enabled",
@@ -316,6 +413,9 @@
   ];
 
   const VALUE_KEYS = [
+    "notifications.window_start_hour",
+    "notifications.window_end_hour",
+    "notifications.window_utc_offset_hours",
     "ntfy.server",
     "ntfy.topic",
     "ntfy.token",
@@ -340,13 +440,23 @@
       if (node) node.value = data.values[key] ?? "";
     });
 
+    const window = data.window;
+    const windowStatus = document.getElementById("window-status");
+    if (window && windowStatus) {
+      windowStatus.textContent = data.values["notifications.window_enabled"]
+        ? (window.open
+            ? `Ringing now — it is ${String(window.local_hour).padStart(2, "0")}:00 locally.`
+            : `Quiet now — it is ${String(window.local_hour).padStart(2, "0")}:00 locally. Incidents are still recorded.`)
+        : "Always ringing. Turn this on to hold pushes outside on-call hours.";
+    }
+
     const firebase = data.channels.find((channel) => channel.name === "firebase");
     if (firebase) document.getElementById("firebase-status").textContent = firebase.target;
 
     const health = await AlertBot.api("/api/health");
     document.getElementById("mailbox-status").textContent = health.mailbox_configured
       ? "IMAP credentials are configured."
-      : "⚠ No IMAP credentials in .env — polling will find nothing.";
+      : "No IMAP credentials in .env — polling will find nothing.";
   }
 
   async function saveSettings(button) {
@@ -374,7 +484,8 @@
 
   async function testNotification(provider, button) {
     button.disabled = true;
-    const original = button.textContent;
+    // innerHTML, not textContent — the label now carries an inline SVG icon.
+    const original = button.innerHTML;
     button.textContent = "Sending…";
     try {
       const data = await AlertBot.api(
@@ -386,14 +497,14 @@
       }
       data.results.forEach((result) =>
         AlertBot.toast(
-          `${result.provider}: ${result.success ? "sent ✓" : "failed — " + result.detail}`,
+          `${result.provider}: ${result.success ? "sent" : "failed — " + result.detail}`,
           result.success ? "ok" : "err",
         ),
       );
     } catch (error) {
       AlertBot.toast(error.message, "err");
     }
-    button.textContent = original;
+    button.innerHTML = original;
     button.disabled = false;
   }
 
@@ -407,14 +518,14 @@
     document.getElementById("sender-list").innerHTML = senders
       .map(
         (row) => `<span class="chip ${row.enabled ? "" : "off"}">${AlertBot.escapeHtml(row.value)}
-          <button title="Remove" onclick="removeSender(${row.id})">×</button></span>`,
+          <button title="Remove" aria-label="Remove sender" onclick="removeSender(${row.id})">${AlertBot.icon("close")}</button></span>`,
       )
       .join("");
 
     document.getElementById("keyword-list").innerHTML = keywords
       .map(
         (row) => `<span class="chip ${row.enabled ? "" : "off"}">${AlertBot.escapeHtml(row.value)}
-          <button title="Remove" onclick="removeKeyword(${row.id})">×</button></span>`,
+          <button title="Remove" aria-label="Remove keyword" onclick="removeKeyword(${row.id})">${AlertBot.icon("close")}</button></span>`,
       )
       .join("");
   }
@@ -472,7 +583,7 @@
 
       document.getElementById("rule-result").innerHTML = `
         <div class="banner ${result.critical ? "danger" : "info"}">
-          <span>${result.critical ? "🚨" : "💤"}</span>
+          ${AlertBot.icon(result.critical ? "warning" : "info")}
           <div class="grow">
             <strong>${result.critical ? "Would raise an incident" : "Would be ignored"}</strong><br />
             Parser: <code>${AlertBot.escapeHtml(result.parser)}</code> ·
@@ -492,7 +603,7 @@
   // -------------------------------------------------------- mailbox
   async function testMailbox(button) {
     button.disabled = true;
-    const original = button.textContent;
+    const original = button.innerHTML;
     button.textContent = "Connecting…";
     try {
       const result = await AlertBot.api("/api/settings/test-mailbox", { method: "POST" });
@@ -503,7 +614,7 @@
 
       document.getElementById("mailbox-result").innerHTML = result.ok
         ? `<div class="banner ok">
-             <span>✅</span>
+             ${AlertBot.icon("check-circle")}
              <div class="grow">
                <strong>Connected to ${AlertBot.escapeHtml(result.host)} as ${AlertBot.escapeHtml(result.email)}</strong><br />
                Folder <code>${AlertBot.escapeHtml(result.folder)}</code>:
@@ -513,7 +624,7 @@
              </div>
            </div>`
         : `<div class="banner danger">
-             <span>⚠️</span>
+             ${AlertBot.icon("warning")}
              <div class="grow">
                <strong>Could not read the mailbox</strong><br />
                ${AlertBot.escapeHtml(result.error || "unknown error")}<br />
@@ -525,7 +636,7 @@
     } catch (error) {
       AlertBot.toast(error.message, "err");
     }
-    button.textContent = original;
+    button.innerHTML = original;
     button.disabled = false;
   }
 
@@ -542,7 +653,7 @@
               <td class="mono dim">${AlertBot.escapeHtml(chat.keywords || "every message")}</td>
               <td>${chat.alarm ? '<span class="badge open">loud</span>' : '<span class="badge muted">quiet</span>'}</td>
               <td class="mono dim">${chat.last_message_at ? AlertBot.timeAgo(chat.last_message_at) : "never"}</td>
-              <td class="right"><button class="btn-sm" onclick="removeChat(${chat.id})">Remove</button></td>
+              <td class="right"><button class="btn-sm" onclick="removeChat(${chat.id})">${AlertBot.icon("close", "ic-sm")} Remove</button></td>
             </tr>`,
           )
           .join("")
@@ -598,7 +709,7 @@
 
       document.getElementById("sim-result").innerHTML = `
         <div class="banner ${outcome[0] === "ok" ? "ok" : "info"}">
-          <span>${outcome[0] === "ok" ? "🚨" : "💤"}</span>
+          ${AlertBot.icon(outcome[0] === "ok" ? "bell-active" : "info")}
           <div class="grow">
             <strong>${AlertBot.escapeHtml(outcome[1])}</strong>
             ${result.matched_keywords.length ? `<br />Matched: ${result.matched_keywords.map((word) => `<code>${AlertBot.escapeHtml(word)}</code>`).join(" ")}` : ""}
@@ -624,12 +735,12 @@
               <td class="mono">${AlertBot.escapeHtml(user.email)}</td>
               <td class="mono">${AlertBot.escapeHtml(user.phone || "—")}</td>
               <td>${AlertBot.escapeHtml(user.role)}</td>
-              <td>${user.notify_push ? "✓" : "—"}</td>
+              <td>${user.notify_push ? `<span class="result-ok">${AlertBot.icon("check", "ic-sm")}</span>` : '<span class="dim">—</span>'}</td>
               <td>${user.has_token ? '<span class="badge info">registered</span>' : '<span class="badge muted">none</span>'}</td>
               <td>${user.active ? '<span class="badge resolved">yes</span>' : '<span class="badge muted">no</span>'}</td>
               <td class="right nowrap">
                 <button class="btn-sm" onclick='editUser(${JSON.stringify(user)})'>Edit</button>
-                <button class="btn-sm" onclick="removeUser(${user.id})">Delete</button>
+                <button class="btn-sm" onclick="removeUser(${user.id})">${AlertBot.icon("close", "ic-sm")} Delete</button>
               </td>
             </tr>`,
           )
@@ -707,7 +818,7 @@
               <td>${AlertBot.escapeHtml(device.label || "unnamed")}</td>
               <td class="mono">${AlertBot.escapeHtml(device.platform)}</td>
               <td class="mono dim">${AlertBot.escapeHtml(device.token_preview)}</td>
-              <td class="right"><button class="btn-sm" onclick="removeDevice(${device.id})">Remove</button></td>
+              <td class="right"><button class="btn-sm" onclick="removeDevice(${device.id})">${AlertBot.icon("close", "ic-sm")} Remove</button></td>
             </tr>`,
           )
           .join("")
