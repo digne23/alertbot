@@ -1,37 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources xmlns:tools="http://schemas.android.com/tools">
+<!--
+  Compose draws every surface, so these themes only need to set the window
+  chrome before the first frame. Framework parents keep us off AppCompat.
+-->
+<resources>
 
-    <style name="Theme.AlertBot" parent="Theme.Material3.Dark.NoActionBar">
-        <item name="android:statusBarColor">#080B11</item>
-        <item name="android:navigationBarColor">#080B11</item>
-        <item name="android:windowBackground">#080B11</item>
+    <style name="Theme.AlertBot" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/brand_blue</item>
+        <item name="android:navigationBarColor">@color/surface_page</item>
+        <item name="android:windowBackground">@color/surface_page</item>
     </style>
 
-    <style name="Theme.AlertBot.Alarm" parent="Theme.AlertBot">
-        <item name="android:statusBarColor">#7A0E12</item>
-        <item name="android:navigationBarColor">#7A0E12</item>
-        <item name="android:windowBackground">#7A0E12</item>
+    <style name="Theme.AlertBot.Alarm" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/alarm_background</item>
+        <item name="android:navigationBarColor">@color/alarm_background</item>
+        <item name="android:windowBackground">@color/alarm_background</item>
         <item name="android:windowShowWallpaper">false</item>
     </style>
 
-    <style name="AlertBot.Label" parent="">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_marginTop">18dp</item>
-        <item name="android:textColor">#94A3B8</item>
-        <item name="android:textSize">13sp</item>
-    </style>
-
-    <style name="AlertBot.Input" parent="">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_marginTop">4dp</item>
-        <item name="android:textColor">#E8EEF6</item>
-        <item name="android:textColorHint">#64748B</item>
-        <item name="android:textSize">15sp</item>
-        <item name="android:padding">12dp</item>
-        <item name="android:background">#121926</item>
-        <item name="android:maxLines">1</item>
-        <item name="android:singleLine" tools:ignore="Deprecated">true</item>
-    </style>
 </resources>

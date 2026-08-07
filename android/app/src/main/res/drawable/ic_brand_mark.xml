@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The same mark as the launcher icon, cropped tight for in-app use (sign-in
+  header, alarm screen). Identical geometry, shifted so the artwork fills the
+  viewport instead of sitting in the adaptive-icon safe zone.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="72dp"
+    android:height="72dp"
+    android:viewportWidth="72"
+    android:viewportHeight="72">
+
+    <group
+        android:translateX="-18"
+        android:translateY="-18.5">
+
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M54,26.5m-4.5,0a4.5,4.5 0,1 1,9 0a4.5,4.5 0,1 1,-9 0" />
+
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M54,32c-9.4,0 -17,7.6 -17,17v9.5c0,4.6 -1.8,9 -5,12.2l-2.1,2.1c-1.2,1.2 -0.4,3.2 1.4,3.2h45.4c1.8,0 2.6,-2 1.4,-3.2L76,70.7c-3.2,-3.2 -5,-7.6 -5,-12.2V49c0,-9.4 -7.6,-17 -17,-17z" />
+
+        <path
+            android:fillColor="#CCAE3A"
+            android:pathData="M38,82h32a2,2 0,0 1,2 2v0a2,2 0,0 1,-2 2h-32a2,2 0,0 1,-2 -2v0a2,2 0,0 1,2 -2z" />
+    </group>
+</vector>

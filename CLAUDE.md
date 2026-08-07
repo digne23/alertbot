@@ -157,14 +157,23 @@ Test with `curl -o /dev/null -w "%{http_code}" $PUBLIC_URL/healthz` — 200
 public, 302 private. Note this does **not** block ntfy, which delivers via
 ntfy.sh and needs no inbound access.
 
-**Blocking the Android app:** the APK builds (CI was fixed in `b123d85`) and is
-served for sideloading at `/static/alertbot.apk`, offered as a download button
-on `/setup` when the file is present — it is gitignored, so a fresh clone falls
-back to build instructions. But the app is pure FCM and
-`credentials/firebase.json` does not exist, `FIREBASE_CREDENTIALS_JSON` is
-unset, `firebase.enabled` is false. **Installing it will never make the phone
-ring.** Only Steve can generate the service-account key from Firebase project
-`alertbot-c4dfd`. MacroDroid is likewise unconfigured (no webhook URL).
+**The Android app** (rewritten 2026-08-07, v2.0): a Jetpack Compose client in
+Esicia's brand colours — blue `#0F5C92` and gold `#CCAE3A`, both read out of
+esicia.rw's own logo SVG and stylesheet, not approximated. Four screens: sign
+in, alarm-permission setup, open alerts, one alert with Acknowledge. Plus the
+full-screen alarm. The device registration key is **never typed** — the app
+fetches it from `GET /api/health` with the dashboard credentials the user just
+proved. UI in `ui/`, REST and storage in `data/`, alarm plumbing at the package
+root. The APK builds in CI (fixed in `b123d85`) and is served for sideloading at
+`/static/alertbot.apk`, offered as a download button on `/setup` when the file
+is present — it is gitignored, so a fresh clone falls back to build
+instructions.
+
+FCM is **no longer blocked** (verified 2026-08-07): `firebase.enabled` is true
+and `FIREBASE_CREDENTIALS_JSON` holds a real service-account key for project
+`alertbot-c4dfd`, injected as a Codespaces secret rather than living in
+`credentials/firebase.json`. What remains is a registered device token, which
+the app does on sign-in. MacroDroid is still unconfigured (no webhook URL).
 
 `PHONE-SETUP.md` is the end-to-end wiring guide for all of the above.
 

@@ -1,6 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Esicia brand palette. These hex values are lifted from esicia.rw's own
+  assets, not approximated:
+
+    brand_blue  #0F5C92  stroke on the accent rule in esicia-logo-compressor.svg,
+                         and the section background in css/style.css
+    brand_gold  #CCAE3A  the most-used colour in css/style.css (47 uses)
+
+  Keep Color.kt in sync with this file.
+-->
 <resources>
-    <color name="ic_launcher_background">#0E131C</color>
-    <color name="alert_red">#FF4D4F</color>
-    <color name="alert_blue">#4C8DFF</color>
+    <color name="brand_blue">#0F5C92</color>
+    <color name="brand_blue_dark">#0B4670</color>
+    <color name="brand_gold">#CCAE3A</color>
+    <color name="brand_gold_dark">#C6A838</color>
+
+    <color name="critical_red">#F45E58</color>
+    <color name="resolved_green">#33D685</color>
+
+    <color name="surface_page">#F7F7F7</color>
+    <color name="text_primary">#333333</color>
+    <color name="text_secondary">#666666</color>
+
+    <color name="ic_launcher_background">#0F5C92</color>
+    <color name="alarm_background">#8E1F1B</color>
 </resources>

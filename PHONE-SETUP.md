@@ -166,12 +166,16 @@ I verified against the actual build:
 | Check | Result |
 |---|---|
 | APK signature | v2 signing block present → installs on Android 7+ |
-| Package / version | `com.alertbot.mobile`, v1.0 (code 1) |
+| Package / version | `com.alertbot.mobile`, v2.0 (code 2) |
 | minSdk / targetSdk | 24 / 35 — fine for the Galaxy A15 (Android 14) |
 | Firebase project | `alertbot-c4dfd`, matching package, API key present |
-| Permissions | `POST_NOTIFICATIONS`, `USE_FULL_SCREEN_INTENT`, `WAKE_LOCK`, `VIBRATE` all declared |
-| Runtime permission | `MainActivity` requests `POST_NOTIFICATIONS` on launch (required on Android 13+) |
+| Permissions | `POST_NOTIFICATIONS`, `USE_FULL_SCREEN_INTENT`, `WAKE_LOCK`, `VIBRATE`, `USE_EXACT_ALARM` all declared |
+| Runtime permission | the Alarm setup screen requests `POST_NOTIFICATIONS`, battery exemption and (Android 14+) full-screen intent |
 | `POST /api/devices` | tested with the app's exact JSON payload → **HTTP 200** |
+
+> The numbers above describe the **v1** APK that was measured on disk. v2.0 is
+> the Compose rewrite and has not been built yet — rerun the workflow and
+> re-measure before quoting a size.
 
 ### Download it
 
@@ -190,55 +194,70 @@ The APK on disk is 7,479,677 bytes, built by GitHub Actions
 (`.github/workflows/android.yml`). To rebuild: Actions → **Build Android APK** →
 run → download the artifact → drop it at `app/static/alertbot.apk`.
 
-### Configure it
+### Sign in
 
-On first launch it asks for four things, stored by `Prefs.kt` and read at
-runtime — so pointing it at a different server later never needs a rebuild:
+First launch is a single sign-in screen with **three** fields. The device
+registration key is no longer one of them: the app fetches it from
+`GET /api/health` using the dashboard login it just completed, so nobody has to
+copy a token between a dashboard and a phone.
 
 | Field | Value |
 |---|---|
-| Base URL | `https://super-duper-halibut-wwwqxxpqj7jfvj97-8000.app.github.dev` |
+| Server address | pre-filled from `DEFAULT_SERVER_URL` in `data/Config.kt` |
 | Username | `admin` |
 | Password | your `DASHBOARD_PASSWORD` |
-| Registration key | your `DEVICE_REGISTRATION_KEY` |
 
-Tap **Save**. It fetches an FCM token, registers via `POST /api/devices`, and
-the phone appears under Settings → devices. The `devices` table has **0 rows**
-right now, so that row appearing is your confirmation. This step needs Step 0
-done — otherwise the app gets a GitHub login page instead of the API.
+Tap **Sign in**. In the background it validates against `GET /api/stats`,
+fetches the registration key, gets an FCM token and registers via
+`POST /api/devices` — the phone then appears under Settings → devices, which is
+your confirmation. This step needs Step 0 done, otherwise the app gets a GitHub
+login page instead of the API.
 
-### Prove it runs — tap Test alarm
+Next comes **Alarm setup**: three plain-language checks (notifications,
+battery exemption, and on Android 14+ full-screen intent). All three matter on a
+Galaxy A15 — One UI will otherwise doze the app and it will never ring at 3am.
+Re-runnable any time from Account → Check alarm setup.
 
-Then tap the **Test alarm** button. The phone should light up and make a loud
-noise immediately. **That is the session goal met: app installed, running,
-alarming.**
+Everything else is two screens: the list of open alerts, and one alert with an
+**Acknowledge** button.
 
-Notes on the preview screen:
+### Prove it runs — send a test alert
 
-- **Snooze** (or the back button) stops the noise and closes it.
-- **Acknowledge** stops the noise too, but the button will then say retry —
-  the preview passes incident ID `0`, and `ApiClient.acknowledge()` refuses
-  anything `<= 0` without calling the server. Expected, not a fault.
+Account (top right) → **Send a test alert** → confirm.
 
-If it installs and previews the alarm, the Android half is proven end to end
-except for the server→phone push, which is the Firebase key below.
+This is a real round trip, not a local preview: it calls `POST /api/test-alert`,
+which goes through `IncidentService.create_incident()` and fires the whole
+notification path. The phone should light up and make a loud noise within a few
+seconds. It also **rings every other phone signed in to AlertBot**, and creates
+a real incident that stays in the history until someone acknowledges it — which
+is why the app asks first.
 
-### What is still missing: server → phone push
+The app waits 15 seconds for the push to come back to itself. If it does not, it
+says so rather than reporting success — "the server accepted the test" and "your
+phone rang" are different claims, and only the second one is worth trusting.
 
-The app is pure Firebase Cloud Messaging
-(`AlertMessagingService : FirebaseMessagingService`). The server has nothing to
-push with:
+On the alarm screen:
 
-- `firebase.enabled` is `false` in `alerts.db`
-- the `credentials/` directory does not exist
-- `FIREBASE_CREDENTIALS_JSON` is empty in `.env`
+- **Acknowledge** silences every phone and marks the incident acknowledged.
+- **Snooze 5 min** silences this phone and schedules a real return via
+  `AlarmManager`. When it fires, `SnoozeReceiver` asks the server whether the
+  incident is still open and unacknowledged, and stays quiet if someone else
+  has since dealt with it. A server it cannot reach is treated as "still
+  broken" — a false alarm is a cheaper mistake than a silent one.
 
-**Only you can unblock this.** In the Firebase console, project `alertbot-c4dfd`
-→ Project settings → Service accounts → **Generate new private key**. Save the
-JSON as `credentials/firebase.json` (gitignored), restart the server, then turn
-on the Firebase channel in Settings and hit its Test button.
+### Server → phone push: no longer blocked
 
-Until that key exists, treat the APK as a second channel that is not yet live.
+This used to be the blocker. It is not any more (verified 2026-08-07):
+
+- `firebase.enabled` is `true` in `alerts.db`
+- `FIREBASE_CREDENTIALS_JSON` is set as a **Codespaces secret** — a real
+  service-account key for project `alertbot-c4dfd`. The `credentials/`
+  directory still does not exist, and does not need to: the env var takes
+  precedence in `app/services/notifiers/firebase.py`.
+
+So the remaining requirement is a registered device token, which the app now
+does on sign-in. If a test alert does not ring, check `/settings` → Firebase →
+`config_summary`, which reports the token count and any init error.
 
 ---
 

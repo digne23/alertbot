@@ -1,105 +1,117 @@
 package com.alertbot.mobile
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
-import android.widget.Button
-import android.widget.EditText
-import android.widget.TextView
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import com.google.firebase.messaging.FirebaseMessaging
-import kotlin.concurrent.thread
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.alertbot.mobile.data.isSignedIn
+import com.alertbot.mobile.data.setupSeen
+import com.alertbot.mobile.ui.AlarmSetupScreen
+import com.alertbot.mobile.ui.AlertsScreen
+import com.alertbot.mobile.ui.IncidentDetailScreen
+import com.alertbot.mobile.ui.SignInScreen
+import com.alertbot.mobile.ui.theme.AlertBotTheme
 
 /**
- * Setup screen. Point the app at an AlertBot server, register the push token,
- * and prove the whole path works with a test alarm.
+ * The whole app is four destinations, so it navigates with a `when` rather
+ * than a navigation library. Adding one would be more moving parts than the
+ * product has screens.
  */
-class MainActivity : AppCompatActivity() {
+private sealed interface Route {
+    data object SignIn : Route
+    data object Setup : Route
+    data object Alerts : Route
+    data class Detail(val incidentId: Int) : Route
+}
 
-    private lateinit var status: TextView
+class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        enableEdgeToEdge()
 
-        status = findViewById(R.id.status)
+        val openIncidentId = intent?.getIntExtra(EXTRA_INCIDENT_ID, 0) ?: 0
 
-        findViewById<EditText>(R.id.input_url).setText(baseUrl)
-        findViewById<EditText>(R.id.input_user).setText(username)
-        findViewById<EditText>(R.id.input_password).setText(password)
-        findViewById<EditText>(R.id.input_key).setText(registrationKey)
-
-        findViewById<Button>(R.id.button_save).setOnClickListener { saveAndRegister() }
-        findViewById<Button>(R.id.button_test).setOnClickListener { previewAlarm() }
-
-        requestNotificationPermission()
-        refreshStatus()
-    }
-
-    private fun requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-        if (granted != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
-        }
-    }
-
-    private fun saveAndRegister() {
-        baseUrl = findViewById<EditText>(R.id.input_url).text.toString().trim()
-        username = findViewById<EditText>(R.id.input_user).text.toString().trim()
-        password = findViewById<EditText>(R.id.input_password).text.toString()
-        registrationKey = findViewById<EditText>(R.id.input_key).text.toString().trim()
-
-        if (baseUrl.isBlank()) {
-            Toast.makeText(this, R.string.url_required, Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        status.text = getString(R.string.registering)
-
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (!task.isSuccessful) {
-                status.text = getString(R.string.token_failed, task.exception?.message ?: "")
-                return@addOnCompleteListener
-            }
-
-            val token = task.result
-            fcmToken = token
-
-            thread {
-                val registered = ApiClient.registerDevice(this, token, Build.MODEL ?: "android")
-                val health = ApiClient.health(this)
-                runOnUiThread {
-                    status.text = if (registered) {
-                        getString(R.string.registered, health ?: "")
-                    } else {
-                        getString(R.string.register_failed, health ?: "")
-                    }
-                }
+        setContent {
+            AlertBotTheme {
+                AlertBotRoot(openIncidentId)
             }
         }
     }
 
-    /** Shows the alarm screen locally so you can hear it without waiting for
-     *  a real incident. Nothing is sent to the server. */
-    private fun previewAlarm() {
-        startActivity(
-            android.content.Intent(this, AlarmActivity::class.java)
-                .putExtra(AlarmActivity.EXTRA_INCIDENT_ID, 0)
-                .putExtra(AlarmActivity.EXTRA_TITLE, getString(R.string.preview_title))
-                .putExtra(AlarmActivity.EXTRA_SERVICE, "portal.esicia.rw")
-                .putExtra(AlarmActivity.EXTRA_MESSAGE, getString(R.string.preview_message))
+    companion object {
+        /** Set when a recovery notification is tapped, to open that alert. */
+        const val EXTRA_INCIDENT_ID = "incident_id"
+    }
+}
+
+@Composable
+private fun AlertBotRoot(openIncidentId: Int) {
+    val context = LocalContext.current
+
+    var route by remember {
+        mutableStateOf(
+            when {
+                !context.isSignedIn -> Route.SignIn
+                !context.setupSeen -> Route.Setup
+                openIncidentId > 0 -> Route.Detail(openIncidentId)
+                else -> Route.Alerts
+            }
+        )
+    }
+    var warningRes by remember { mutableStateOf<Int?>(null) }
+
+    BackHandler(enabled = route is Route.Detail) {
+        route = Route.Alerts
+    }
+
+    when (val current = route) {
+        is Route.SignIn -> SignInScreen(
+            onSignedIn = { warning ->
+                warningRes = warning
+                route = Route.Setup
+            },
+        )
+
+        is Route.Setup -> AlarmSetupScreen(
+            onContinue = {
+                context.setupSeen = true
+                route = Route.Alerts
+            },
+        )
+
+        is Route.Alerts -> AlertsScreen(
+            onOpenIncident = { id -> route = Route.Detail(id) },
+            onOpenSetup = { route = Route.Setup },
+            onSignedOut = { route = Route.SignIn },
+        )
+
+        is Route.Detail -> IncidentDetailScreen(
+            incidentId = current.incidentId,
+            onBack = { route = Route.Alerts },
         )
     }
 
-    private fun refreshStatus() {
-        status.text = when {
-            baseUrl.isBlank() -> getString(R.string.not_configured)
-            fcmToken.isBlank() -> getString(R.string.no_token)
-            else -> getString(R.string.configured, baseUrl)
-        }
+    // The app is perfectly usable with pushes off — it just cannot wake anyone,
+    // which is the one thing it exists to do. Say so rather than look healthy.
+    warningRes?.let { message ->
+        AlertDialog(
+            onDismissRequest = { warningRes = null },
+            text = { Text(stringResource(message)) },
+            confirmButton = {
+                TextButton(onClick = { warningRes = null }) { Text("OK") }
+            },
+        )
     }
 }
