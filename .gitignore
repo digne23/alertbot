@@ -25,6 +25,8 @@ android/local.properties
 
 # Built APK, fetched from CI for sideloading — not source
 app/static/*.apk
+# ...and the artifact zip it arrives in
+alertbot-apk*.zip
 
 # Session scratch notes, not project documentation
 STATUS.md
