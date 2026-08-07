@@ -1,13 +1,15 @@
 {% extends "base.html" %}
 
 {% block topbar %}
-<button class="btn-sm" onclick="exportCsv()">⭳ Export CSV</button>
+<button class="btn-sm" onclick="exportCsv()">
+  <svg class="ic" aria-hidden="true"><use href="#i-download" /></svg> Export CSV
+</button>
 {% endblock %}
 
 {% block content %}
 <div class="panel">
   <div class="panel-head">
-    <h2>Filters</h2>
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-filter" /></svg> Filters</h2>
     <div class="spacer"></div>
     <span class="muted mono" id="result-count"></span>
   </div>
@@ -27,13 +29,17 @@
       </select>
       <label>From <input type="date" id="f-since" /></label>
       <label>To <input type="date" id="f-until" /></label>
-      <button class="btn-sm" onclick="resetFilters()">Reset</button>
+      <button class="btn-sm" onclick="resetFilters()">
+        <svg class="ic" aria-hidden="true"><use href="#i-refresh" /></svg> Reset
+      </button>
     </div>
   </div>
 </div>
 
 <div class="panel">
-  <div class="panel-head"><h2>Incidents per day (last 7 days)</h2></div>
+  <div class="panel-head">
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-chart" /></svg> Incidents per day (last 7 days)</h2>
+  </div>
   <div class="panel-body">
     <div class="spark" id="spark"></div>
   </div>
@@ -41,11 +47,15 @@
 
 <div class="panel">
   <div class="panel-head">
-    <h2>Incident history</h2>
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-history" /></svg> Incident history</h2>
     <div class="spacer"></div>
-    <button class="btn-sm" id="prev-page" onclick="changePage(-1)">← Prev</button>
+    <button class="btn-sm" id="prev-page" onclick="changePage(-1)">
+      <svg class="ic" aria-hidden="true"><use href="#i-chevron-left" /></svg> Prev
+    </button>
     <span class="muted mono" id="page-label">1</span>
-    <button class="btn-sm" id="next-page" onclick="changePage(1)">Next →</button>
+    <button class="btn-sm" id="next-page" onclick="changePage(1)">
+      Next <svg class="ic" aria-hidden="true"><use href="#i-chevron-right" /></svg>
+    </button>
   </div>
   <div class="panel-body tight">
     <div class="table-wrap">
@@ -115,7 +125,7 @@
                 <td class="mono">${incident.event_count}</td>
                 <td class="mono">${incident.notify_count}</td>
                 <td class="mono dim nowrap">${incident.acknowledged_at ? AlertBot.timeAgo(incident.acknowledged_at) : "—"}</td>
-                <td><a class="btn btn-sm btn-ghost" href="/incident/${incident.id}">Open</a></td>
+                <td class="right"><a class="btn btn-sm btn-ghost nowrap" href="/incident/${incident.id}">Open ${AlertBot.icon("arrow-right", "ic-sm")}</a></td>
               </tr>`,
             )
             .join("")

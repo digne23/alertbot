@@ -3,7 +3,9 @@
    phone has no signal. API responses are never cached — a stale incident list
    is worse than no incident list. */
 
-const CACHE = "alertbot-shell-v1";
+// Bumped with the Esicia light restyle so cached dark-theme CSS and icons are
+// dropped rather than served alongside the new markup.
+const CACHE = "alertbot-shell-v2";
 
 const SHELL = [
   "/static/style.css",

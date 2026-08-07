@@ -1,16 +1,22 @@
 # Next steps — for Steve
 
-> **Part A** is the onboarding/branding rewrite (2026-08-07, second pass): what
-> changed, what was verified, and what is still open. **Part B** is the
-> post-rewrite checklist, updated for the new two-field sign-in.
+> **Part A** is the onboarding/branding rewrite (2026-08-07, second pass).
+> **Part C** is the dashboard restyle and the notification changes
+> (2026-08-07, third pass) — the most recent work. **Part B** is the
+> post-rewrite checklist, updated for the two-field sign-in.
 >
 > **Short version:** the Android *source* now signs in with a name and a PIN;
 > the app *on your phone* does not, and will not until CI builds it and you
-> reinstall. Start at **A0**.
+> reinstall. Start at **A0**. The browser dashboard is now white/blue/gold and
+> needs no rebuild — reload and it is there (**C1**).
 >
-> **Three things need you:** set `APP_PIN` in `.env` (A5), rebuild the APK
-> (Part B step 3), and get me the real brand hexes if you want them verified
-> (A1).
+> **`APP_PIN` is set** and a live sign-in was checked against it — restart the
+> server to load it. The value is not recorded here; see A7 for why.
+>
+> **Three things still need you:** rebuild the APK (Part B step 3), decide
+> whether to rotate `DEVICE_REGISTRATION_KEY`, which is still `devtestkey`
+> (A7), and confirm you want quiet hours on — the phone is now silent
+> 06:00–24:00 (**C3**). Optionally, get me the real brand hexes (A1).
 
 ---
 
@@ -199,13 +205,16 @@ Same screen count as now, minus every technical field.
 
 ## A5. What you need to do
 
-1. **Set `APP_PIN` in `.env`** — the key is already there, empty, waiting for a
-   value. Restart the server afterwards. Until you do, the app cannot sign
-   anyone in; it shows "AlertBot isn't ready for sign-ins yet."
-2. **Rebuild the APK** — Actions → Build Android APK → Run workflow. Nothing
-   here has been compiled: this container has no Android SDK, so CI is the only
-   real check. See Part B step 3.
-3. *(optional)* **Get me the real brand hexes**, per A1.
+1. ~~Set `APP_PIN` in `.env`~~ — **done.** A 4-digit PIN is set and was checked
+   against a live sign-in: the right PIN returns 200, a wrong one 401. The value
+   is not written down here on purpose; see A7. **Restart the server** so it
+   picks the value up — `.env` is read once at import.
+2. **Rebuild the APK** — push to `main`, or Actions → Build Android APK → Run
+   workflow. Nothing here has been compiled: this container has no Android SDK,
+   so CI is the only real check. See Part B step 3.
+3. **Decide about `DEVICE_REGISTRATION_KEY`** — it is still `devtestkey`. See
+   A7.
+4. *(optional)* **Get me the real brand hexes**, per A1.
 
 ## A6. What was verified, and what was not
 
@@ -220,6 +229,160 @@ container — and no screen has been run on a device. The res XML all parses and
 every `ApiClient` call site and `R.string` reference was checked by hand against
 the new signatures, but that is not a build. Part B step 3 remains the real
 gate.
+
+---
+
+## A7. Secrets — where they live, and why they are not in here
+
+**The PIN is not written in this file, and cannot be committed.** It lives only
+in `.env`, which is gitignored (`.gitignore:5`) and untracked. That is
+deliberate on two counts: this file is committed and pushed, and `.env` also
+holds the live mailbox password, the ntfy token and the Firebase paths — putting
+any of it in git would be awkward to undo.
+
+Nothing breaks as a result. The PIN never needs to reach GitHub or the APK:
+
+- the **server** reads it from `.env`;
+- the **phone** never stores it — staff type it once, and the server hands back
+  the registration key in exchange.
+
+So "commit the PIN change" has nothing to commit. The code that *reads*
+`APP_PIN` was committed and pushed in `572229e`; only the value changed, and
+values do not belong in the repo.
+
+### `DEVICE_REGISTRATION_KEY` is still `devtestkey`
+
+Worth a decision. That key used to be low-stakes: it only allowed WhatsApp
+ingest and device registration. It now also opens the alert list, acknowledge
+and test-alert, because the app authenticates with it instead of a dashboard
+password — and it is compiled into every APK. A guessable key on a public URL is
+a weaker link than the PIN sitting in front of it.
+
+Rotating it is one line in `.env`, but it means re-signing-in every phone and
+re-pasting the key into any MacroDroid macro that forwards WhatsApp
+notifications. Ask me and I will generate one; the MacroDroid side is yours,
+since that configuration is not visible from here.
+
+### A 4-digit PIN
+
+Ten thousand combinations. The lockout is carrying more of the weight than the
+PIN is: five wrong tries from one address buys fifteen minutes, so about twenty
+attempts an hour. It is per-address and in-memory per process, so someone with
+several addresses moves faster, and a process restart clears it. Adequate behind
+a decision made knowingly; lengthen the PIN if this ever faces anything other
+than staff.
+
+# Part C — dashboard restyle + notification changes
+
+Written 2026-08-07, third pass. Unlike Part A, **all of this is live the moment
+you reload the dashboard** — none of it needs an APK rebuild.
+
+`tools/selftest.py` passes **45/45** after every change below.
+
+## C1. The dashboard is now white, blue and gold
+
+The browser dashboard was a dark NOC console. It is now Esicia-branded, using
+the exact hexes already in the Android app (`#0F5C92` blue, `#CCAE3A` gold), so
+the two match. Blue sidebar, white cards, gold on active nav.
+
+Same pages, same buttons, same routes, same data — this was a restyle, not a
+rewrite. `android/` was not touched.
+
+| File | Change |
+|---|---|
+| `app/static/style.css` | rewritten light theme. Every colour is a token; the brand hexes appear once each. |
+| `app/templates/base.html` | inline SVG icon sprite (39 Material Symbols glyphs), brand mark, light `theme-color`. |
+| all five page templates | icons instead of emoji, panel headers, spacing and hierarchy. |
+| `app/static/app.js` | `AlertBot.icon()` helper; badges carry icons. |
+| `icon.svg`, the three PNGs, `manifest.webmanifest`, `sw.js` | brand-coloured PWA mark; cache bumped to `v2` so stale dark CSS is dropped. |
+| `tools/make_icons.py` | draws the mark in brand colours now. |
+
+**Icons are inlined, not fetched from Google Fonts.** A webfont link would show
+raw text like `warning` mid-layout whenever the CDN is unreachable or the PWA is
+offline. Costs ~4KB in `base.html`.
+
+**Contrast.** `#F45E58` and `#33D685` were tuned for a black screen and fail on
+white — the green measures **1.89:1** where 4.5 is the floor for small text.
+They are kept for shapes (rails, dots, badge borders) and paired with darker
+text variants. Every text/background pair in the theme was measured and clears
+4.5:1; two gold pairs came in at 4.38 on the first pass and the gold text token
+was darkened to `#7C620F` to fix it.
+
+**Not verified: how it actually looks.** There is no headless browser in this
+container, so the layout and spacing were never rendered. Open `/` and `/setup`
+on both desktop and a phone before trusting it.
+
+## C2. Phone page copy is now staff-first
+
+`/setup` read as though every engineer had to configure ntfy, MacroDroid and
+Firebase themselves. Restructured so **section 1 is the only part staff read**:
+install the APK, sign in with name and PIN, done. ntfy, Firebase, MacroDroid and
+WhatsApp are sections 2–5, each tagged **Admin**.
+
+Deleted the step telling users to enter a backend URL and dashboard password —
+that has been wrong since the name+PIN rewrite. The APK download button moved
+into the staff section.
+
+## C3. Quiet hours — the phone is silent during the day
+
+**This is a behaviour change worth a second look.** Notifications now only fire
+between **00:00 and 06:00** local. Outside that window an incident is still
+raised, still logged, still on the dashboard — but nothing rings.
+
+Settings → Notification channels, four fields (on/off, start, end, UTC offset).
+
+- **The UTC offset matters.** The server stores naive UTC and the scheduler runs
+  UTC, so without it your window would have run 00:00–06:00 UTC = 02:00–08:00 in
+  Kigali. It defaults to **2**. Verified across all 24 hours; windows crossing
+  midnight work.
+- **Test buttons ignore the window** — proving the alarm path at 2pm must not be
+  answered with silence. Only the *first* test push is exempt; its repeats obey
+  quiet hours so a forgotten test cannot nag all day.
+- **A zero-width window fails open** — if start and end ever match it logs a
+  warning and rings anyway, rather than muting everything forever.
+- Held pushes appear in the notification log as
+  `quiet-hours — held: 17:00 local, window 00:00-06:00`, so silence is never
+  ambiguous.
+
+**The trade-off, plainly:** this runs against the project's own rule that the
+engineer getting woken beats everything else. A daytime outage wakes nobody
+until midnight; anything still unacknowledged then starts alarming. There is a
+warning banner beside the control. **Untick the box to revert.**
+
+`selftest.py` sets `notifications.window_enabled: False` for its run — it tests
+the delivery path, not the clock.
+
+## C4. Em dashes are out of the notification titles
+
+Push titles read `CRITICAL: Vubavuba`, not `CRITICAL — Vubavuba`. Also
+`STILL DOWN:`, `ESCALATED:`, `RESOLVED:`, the test-alert sample reason, and the
+browser notification title.
+
+A colon, not a hyphen: ntfy already has to transliterate dashes out of its ASCII
+headers, so a colon is the one separator that survives every channel unchanged.
+
+**No APK rebuild needed.** The Android app composes no text of its own — it
+displays the title and body the server sends, so this reaches the phone as soon
+as the server restarts. The 22 em dashes left in `android/` are all in comments,
+which the compiler strips.
+
+## C5. Sender addresses were already editable
+
+You asked for the alert-sender list to be add/removable. **It already was** —
+Settings → Critical senders, chip list with an add box and an `×` on each entry,
+backed by `/api/settings/senders`. I tested it live (added an address, confirmed
+it appeared, deleted it, confirmed the original five survived) and built nothing
+new. If it was not behaving for you, say what you saw.
+
+## C6. Side effects from testing
+
+- Firing one test alert deduped into your existing open incident **#14**
+  (`portal.esicia.rw`), bumping its event count and sending one real escalation
+  push — your phone may have buzzed.
+- Incident **#19** (`windowcheck.esicia.rw`) was created and has been closed.
+- Your other five open incidents are untouched.
+
+---
 
 # Part B — post-rewrite checklist
 

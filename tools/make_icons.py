@@ -3,8 +3,10 @@
 Run:  python tools/make_icons.py
 Writes app/static/icons/icon-192.png, icon-512.png, icon-maskable-512.png.
 The vector source of truth is app/static/icons/icon.svg — this script draws the
-same mark (dark rounded tile, red alarm bell, blue signal arcs) with plain maths
-so the repo has no image dependency.
+same mark (blue rounded tile, gold alarm bell, white signal arcs) with plain
+maths so the repo has no image dependency.
+
+The hexes are Esicia's, shared with the Android app: blue #0F5C92, gold #CCAE3A.
 """
 
 import math
@@ -14,12 +16,12 @@ import zlib
 
 OUT_DIR = os.path.join("app", "static", "icons")
 
-BG_OUTER = (8, 11, 17)
-BG_INNER = (21, 29, 44)
-BELL_TOP = (255, 107, 109)
-BELL_BOTTOM = (200, 31, 34)
-ACCENT = (76, 141, 255)
-LIGHT = (255, 154, 155)
+BG_OUTER = (15, 92, 146)  # #0F5C92 brand blue
+BG_INNER = (18, 106, 168)  # a touch lighter, for the diagonal sheen
+BELL_TOP = (219, 191, 79)
+BELL_BOTTOM = (198, 168, 56)  # #C6A838 gold dark
+ACCENT = (255, 255, 255)
+LIGHT = (232, 209, 122)
 
 
 def lerp(a, b, t):

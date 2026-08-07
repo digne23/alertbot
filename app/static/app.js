@@ -81,18 +81,28 @@ const AlertBot = (() => {
     });
   }
 
+  // Reference into the sprite that base.html inlines, so markup built here
+  // uses the same icon set as the templates.
+  function icon(name, className = "ic") {
+    return `<svg class="${className}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+  }
+
   function stateBadges(incident) {
     const badges = [];
     if (incident.state === "OPEN") {
-      badges.push('<span class="badge open">open</span>');
+      badges.push(`<span class="badge open">${icon("error", "ic-sm")}open</span>`);
     } else {
-      badges.push('<span class="badge resolved">resolved</span>');
+      badges.push(`<span class="badge resolved">${icon("check-circle", "ic-sm")}resolved</span>`);
     }
-    if (incident.acknowledged) badges.push('<span class="badge ack">acked</span>');
+    if (incident.acknowledged) {
+      badges.push(`<span class="badge ack">${icon("check", "ic-sm")}acked</span>`);
+    }
     if (incident.escalation_level > 0) {
-      badges.push('<span class="badge escalated">escalated</span>');
+      badges.push(`<span class="badge escalated">${icon("escalate", "ic-sm")}escalated</span>`);
     }
-    if (incident.silenced) badges.push('<span class="badge silenced">silenced</span>');
+    if (incident.silenced) {
+      badges.push(`<span class="badge silenced">${icon("bell-off", "ic-sm")}silenced</span>`);
+    }
     if (incident.source && incident.source !== "email") {
       badges.push(`<span class="badge muted">${escapeHtml(incident.source)}</span>`);
     }
@@ -141,7 +151,7 @@ const AlertBot = (() => {
     if (alerted.has(incident.id)) return;
     alerted.add(incident.id);
     try {
-      const note = new Notification(`${incident.severity} — ${incident.service}`, {
+      const note = new Notification(`${incident.severity}: ${incident.service}`, {
         body: `${incident.provider}: ${incident.reason || "Incident opened"}`,
         tag: `alertbot-${incident.id}`,
         requireInteraction: true,
@@ -187,6 +197,7 @@ const AlertBot = (() => {
     escapeHtml,
     timeAgo,
     formatTime,
+    icon,
     stateBadges,
     copy,
     setLive,

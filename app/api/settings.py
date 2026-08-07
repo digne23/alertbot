@@ -30,10 +30,20 @@ def read_settings():
     token = str(values.get("ntfy.token") or "")
     values["ntfy.token_set"] = bool(token)
     values["ntfy.token"] = ("•" * 8 + token[-4:]) if token else ""
+
+    # Read-only, computed server-side: quiet hours are judged against the
+    # server's clock, so the browser's must not be used to display them.
+    window_open, window_reason = notification_service.window_state()
+
     return {
         "values": values,
         "channels": notification_service.channel_status(),
         "jobs": scheduler_module.job_status(),
+        "window": {
+            "open": window_open,
+            "reason": window_reason,
+            "local_hour": notification_service.local_hour(),
+        },
     }
 
 

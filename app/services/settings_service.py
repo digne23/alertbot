@@ -27,6 +27,18 @@ def defaults() -> dict:
         "notifications.enabled": True,
         "notifications.notify_on_resolve": True,
 
+        # Quiet the phone outside on-call hours. Incidents are still recorded
+        # and still appear on the dashboard; only the push is withheld, and an
+        # incident still open when the window opens alarms then instead.
+        # Hours are local (see the offset below), start inclusive, end
+        # exclusive, and may wrap past midnight (22 -> 4 is a valid window).
+        "notifications.window_enabled": True,
+        "notifications.window_start_hour": 0,
+        "notifications.window_end_hour": 6,
+        # Kigali is UTC+2 year-round and the server stores naive UTC, so the
+        # window would be two hours out without this.
+        "notifications.window_utc_offset_hours": 2,
+
         # ntfy (https://ntfy.sh) — the primary phone channel.
         "ntfy.enabled": bool(env.NTFY_TOPIC),
         "ntfy.server": env.NTFY_SERVER,

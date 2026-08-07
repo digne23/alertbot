@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 
 {% block topbar %}
-<a class="btn btn-sm btn-ghost" href="/history">← All incidents</a>
+<a class="btn btn-sm btn-ghost" href="/history">
+  <svg class="ic" aria-hidden="true"><use href="#i-arrow-left" /></svg> All incidents
+</a>
 {% endblock %}
 
 {% block content %}
@@ -14,11 +16,15 @@
 <script>
   const INCIDENT_ID = {{ incident_id }};
 
+  function dot(kind, name) {
+    return `<span class="tl-dot ${kind}">${AlertBot.icon(name)}</span>`;
+  }
+
   function eventDot(event, success) {
-    if (!success) return '<span class="tl-dot bad">✗</span>';
-    if (event === "RESOLVED") return '<span class="tl-dot ok">✓</span>';
-    if (event === "ESCALATED") return '<span class="tl-dot warn">!</span>';
-    return '<span class="tl-dot bad">▲</span>';
+    if (!success) return dot("bad", "close");
+    if (event === "RESOLVED") return dot("ok", "check");
+    if (event === "ESCALATED") return dot("warn", "escalate");
+    return dot("bad", "bell-active");
   }
 
   function render(incident) {
@@ -27,12 +33,20 @@
     const actions = [];
     if (incident.state === "OPEN") {
       if (!incident.acknowledged) {
-        actions.push('<button class="btn-ack" onclick="ack(this)">✓ Acknowledge</button>');
         actions.push(
-          `<button onclick="silence(${!incident.silenced}, this)">${incident.silenced ? "🔔 Unsilence" : "🔕 Silence alarm"}</button>`,
+          `<button class="btn-ack" onclick="ack(this)">${AlertBot.icon("check")} Acknowledge</button>`,
+        );
+        actions.push(
+          `<button onclick="silence(${!incident.silenced}, this)">${
+            incident.silenced
+              ? `${AlertBot.icon("bell")} Unsilence`
+              : `${AlertBot.icon("bell-off")} Silence alarm`
+          }</button>`,
         );
       }
-      actions.push('<button onclick="closeIncident(this)">Close incident</button>');
+      actions.push(
+        `<button onclick="closeIncident(this)">${AlertBot.icon("check-circle")} Close incident</button>`,
+      );
     }
 
     const timeline = [];
@@ -40,7 +54,7 @@
       when: incident.created_at,
       title: `Incident opened — ${incident.reason || "no reason reported"}`,
       meta: `source: ${incident.source}`,
-      dot: '<span class="tl-dot bad">▲</span>',
+      dot: dot("bad", "error"),
     });
     incident.notifications
       .slice()
@@ -58,7 +72,7 @@
         when: incident.acknowledged_at,
         title: "Acknowledged — alarm stopped",
         meta: "",
-        dot: '<span class="tl-dot ok">✓</span>',
+        dot: dot("ok", "check"),
       });
     }
     if (incident.resolved_at) {
@@ -66,7 +80,7 @@
         when: incident.resolved_at,
         title: "Incident resolved",
         meta: "",
-        dot: '<span class="tl-dot ok">✓</span>',
+        dot: dot("ok", "check-circle"),
       });
     }
     timeline.sort((a, b) => new Date(a.when) - new Date(b.when));
@@ -74,13 +88,13 @@
     document.getElementById("incident-root").innerHTML = `
       ${
         alarming
-          ? '<div class="banner danger"><span>🚨</span><div class="grow"><strong>This incident is still alarming.</strong> The phone keeps ringing until you acknowledge it.</div></div>'
+          ? `<div class="banner danger">${AlertBot.icon("bell-active")}<div class="grow"><strong>This incident is still alarming.</strong> The phone keeps ringing until you acknowledge it.</div></div>`
           : ""
       }
 
       <div class="panel">
         <div class="panel-head">
-          <h2>Incident #${incident.id}</h2>
+          <h2>${AlertBot.icon("warning")} Incident #${incident.id}</h2>
           <div class="spacer"></div>
           ${AlertBot.stateBadges(incident)}
         </div>
@@ -105,7 +119,7 @@
 
       <div class="split">
         <div class="panel">
-          <div class="panel-head"><h2>Timeline</h2></div>
+          <div class="panel-head"><h2>${AlertBot.icon("schedule")} Timeline</h2></div>
           <div class="panel-body">
             <div class="timeline">
               ${timeline
@@ -125,7 +139,7 @@
         </div>
 
         <div class="panel">
-          <div class="panel-head"><h2>Source emails</h2></div>
+          <div class="panel-head"><h2>${AlertBot.icon("mail")} Source emails</h2></div>
           <div class="panel-body tight">
             <div class="table-wrap">
               <table>
@@ -159,7 +173,7 @@
       AlertBot.setLive("", `updated ${new Date().toLocaleTimeString()}`);
     } catch (error) {
       document.getElementById("incident-root").innerHTML =
-        `<div class="banner danger"><span>⚠️</span><div class="grow">${AlertBot.escapeHtml(error.message)}</div></div>`;
+        `<div class="banner danger">${AlertBot.icon("warning")}<div class="grow">${AlertBot.escapeHtml(error.message)}</div></div>`;
       AlertBot.setLive("dead", "error");
     }
   }

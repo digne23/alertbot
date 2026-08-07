@@ -5,18 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{{ page_title }} · {{ app_name }}</title>
     <link rel="stylesheet" href="/static/style.css" />
-    <meta name="theme-color" content="#080b11" />
+    <meta name="theme-color" content="#0F5C92" />
+    <meta name="color-scheme" content="light" />
   </head>
   <body>
     <div style="display:grid; place-items:center; min-height:100vh; padding:24px">
       <div style="text-align:center; max-width:420px">
-        <div class="brand-mark" style="margin:0 auto 18px; width:52px; height:52px; font-size:26px">🚨</div>
-        <h1 style="margin:0 0 8px">{{ page_title }}</h1>
-        <p class="muted">
+        <!-- This page is served without the shell, so the mark is inlined. -->
+        <div class="brand-mark" style="margin:0 auto 20px; width:56px; height:56px; border-radius:16px">
+          <svg viewBox="0 0 24 24" style="width:30px; height:30px; fill:currentColor" aria-hidden="true">
+            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+          </svg>
+        </div>
+        <h1 style="margin:0 0 10px; font-size:22px">{{ page_title }}</h1>
+        <p class="muted" style="font-size:14.5px">
           AlertBot could not reach the server. Incidents are still being recorded
           on the backend — this page will work again once you are back online.
         </p>
-        <div class="row" style="justify-content:center; margin-top:18px">
+        <div class="row" style="justify-content:center; margin-top:22px">
           <button class="btn-primary" onclick="location.href='/'">Back to dashboard</button>
           <button onclick="location.reload()">Retry</button>
         </div>

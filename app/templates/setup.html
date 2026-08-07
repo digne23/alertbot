@@ -2,22 +2,122 @@
 
 {% block content %}
 <div class="banner info">
-  <span>📱</span>
+  <svg class="ic" aria-hidden="true"><use href="#i-phone" /></svg>
   <div class="grow">
-    <strong>Goal: your phone wakes you at 4am.</strong><br />
-    Do step 1 and you are alerted tonight. Steps 2 and 3 make it louder and
-    harder to sleep through.
+    <strong>Staff install the app and sign in. That is the whole job.</strong><br />
+    Section 1 is everything an engineer has to do. Everything after it is
+    administrator plumbing — nobody on the on-call rota needs to read it.
   </div>
 </div>
 
 <div class="panel">
-  <div class="panel-head"><h2>1 · ntfy — fastest path, works today</h2></div>
+  <div class="panel-head">
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-install" /></svg> 1 · Staff — install the AlertBot app</h2>
+  </div>
   <div class="panel-body">
+    <p style="margin-top:0" class="muted">
+      Two steps, both on the phone. The app finds the server and registers
+      itself for push in the background — there is nothing to configure and no
+      URL, password or key to type.
+    </p>
     <div class="steps">
       <div class="step">
         <span class="step-num"></span>
         <div>
-          <h3>Install ntfy on the phone</h3>
+          <h3>Install the app</h3>
+          {% if apk_available %}
+          <p>
+            Open this page <em>on the phone</em> and tap below. Android asks you
+            to allow installs from unknown sources — that prompt is expected.
+          </p>
+          <p>
+            <a class="btn btn-primary" href="/static/alertbot.apk" download>
+              <svg class="ic" aria-hidden="true"><use href="#i-download" /></svg> Download alertbot.apk
+            </a>
+          </p>
+          <p class="muted">
+            Admin note: this build came from <strong>Actions → Build Android APK</strong>.
+            To refresh it, download the artifact again and drop the APK at
+            <code>app/static/alertbot.apk</code>.
+          </p>
+          {% else %}
+          <p>
+            No APK is published on this server yet, so there is nothing for staff
+            to install. An administrator builds one in the cloud: the repo ships
+            <code>.github/workflows/android.yml</code>. Push to GitHub, open
+            <strong>Actions → Build Android APK</strong>, download the artifact and
+            save the APK as <code>app/static/alertbot.apk</code> — a download
+            button appears here once it exists.
+          </p>
+          {% endif %}
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Sign in with your name and the team PIN</h3>
+          <p>
+            Open the app, type your name and the shared PIN, and accept the alarm
+            permission it asks for. It registers for push straight away and starts
+            showing open incidents.
+          </p>
+          <p class="muted">
+            The PIN comes from whoever administers AlertBot. That is the only
+            credential an engineer ever needs.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-cloud" /></svg> 2 · Push delivery for the app</h2>
+    <span class="admin-tag">Admin</span>
+  </div>
+  <div class="panel-body">
+    <p style="margin-top:0">
+      The app receives its alerts over Firebase Cloud Messaging. The server can
+      only push once <code>credentials/firebase.json</code> (or
+      <code>FIREBASE_CREDENTIALS_JSON</code>) holds a service-account key for the
+      Firebase project, and the Firebase channel is switched on in
+      <a href="/settings">Settings</a>. Devices appear there on their own as
+      staff sign in.
+    </p>
+    <div class="row">
+      <button onclick="testChannel('firebase', this)">
+        <svg class="ic" aria-hidden="true"><use href="#i-play" /></svg> Send Firebase test
+      </button>
+    </div>
+    <p class="muted" style="margin-bottom:6px; margin-top:18px">
+      This server's address, for the macros further down:
+    </p>
+    <div class="copy-row">
+      <span class="code" id="backend-url"></span>
+      <button class="btn-sm" onclick="AlertBot.copy(document.getElementById('backend-url').textContent)">
+        <svg class="ic" aria-hidden="true"><use href="#i-copy" /></svg> Copy
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-bell" /></svg> 3 · ntfy — admin backup channel</h2>
+    <span class="admin-tag">Admin</span>
+  </div>
+  <div class="panel-body">
+    <p class="muted" style="margin-top:0">
+      A second way to reach an admin phone, independent of the app and of
+      Firebase. Useful while the app is being rolled out, or as a fallback if FCM
+      is having a bad day. Staff do not install ntfy.
+    </p>
+    <div class="steps">
+      <div class="step">
+        <span class="step-num"></span>
+        <div>
+          <h3>Install ntfy on the admin phone</h3>
           <p>Play Store → <strong>ntfy</strong> (by Philipp Heckel). On iPhone: App Store → ntfy.</p>
         </div>
       </div>
@@ -26,13 +126,17 @@
         <div>
           <h3>Pick a secret topic and subscribe</h3>
           <p>
-            Anyone who knows the topic can read your alerts, so use something
+            Anyone who knows the topic can read the alerts, so use something
             unguessable. Here is one generated for you:
           </p>
           <div class="copy-row">
             <span class="code" id="suggested-topic">…</span>
-            <button class="btn-sm" onclick="AlertBot.copy(document.getElementById('suggested-topic').textContent)">Copy</button>
-            <button class="btn-sm" onclick="newTopic()">Regenerate</button>
+            <button class="btn-sm" onclick="AlertBot.copy(document.getElementById('suggested-topic').textContent)">
+              <svg class="ic" aria-hidden="true"><use href="#i-copy" /></svg> Copy
+            </button>
+            <button class="btn-sm" onclick="newTopic()">
+              <svg class="ic" aria-hidden="true"><use href="#i-refresh" /></svg> Regenerate
+            </button>
           </div>
           <p style="margin-top:8px">
             In the ntfy app tap <strong>+</strong> → paste the topic → Subscribe.
@@ -46,8 +150,12 @@
           <p>Paste it here and save — this writes it straight into Settings.</p>
           <div class="copy-row">
             <input type="text" id="topic-input" placeholder="alertbot-esicia-…" style="flex:1" />
-            <button class="btn-primary" onclick="saveTopic(this)">Save topic</button>
-            <button onclick="testChannel('ntfy', this)">Send test</button>
+            <button class="btn-primary" onclick="saveTopic(this)">
+              <svg class="ic" aria-hidden="true"><use href="#i-save" /></svg> Save topic
+            </button>
+            <button onclick="testChannel('ntfy', this)">
+              <svg class="ic" aria-hidden="true"><use href="#i-play" /></svg> Send test
+            </button>
           </div>
           <p class="muted" style="margin-top:8px" id="ntfy-current"></p>
         </div>
@@ -69,12 +177,16 @@
 </div>
 
 <div class="panel">
-  <div class="panel-head"><h2>2 · MacroDroid — the real alarm</h2></div>
+  <div class="panel-head">
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-phone" /></svg> 4 · MacroDroid — admin siren</h2>
+    <span class="admin-tag">Admin</span>
+  </div>
   <div class="panel-body">
     <p class="muted" style="margin-top:0">
-      A push notification is still just a notification. MacroDroid can force the
-      alarm stream to full volume, play a siren on a loop and wake the screen —
-      which is what actually gets someone out of bed.
+      A push notification is still just a notification. On a dedicated admin
+      handset, MacroDroid can force the alarm stream to full volume, play a siren
+      on a loop and wake the screen. Staff phones do not need this — the app
+      already runs its own full-screen alarm.
     </p>
     <div class="steps">
       <div class="step">
@@ -95,8 +207,12 @@
           </p>
           <div class="copy-row">
             <input type="text" id="macro-input" placeholder="https://trigger.macrodroid.com/…/alertbot" style="flex:1" />
-            <button class="btn-primary" onclick="saveWebhook(this)">Save webhook</button>
-            <button onclick="testChannel('macrodroid', this)">Send test</button>
+            <button class="btn-primary" onclick="saveWebhook(this)">
+              <svg class="ic" aria-hidden="true"><use href="#i-save" /></svg> Save webhook
+            </button>
+            <button onclick="testChannel('macrodroid', this)">
+              <svg class="ic" aria-hidden="true"><use href="#i-play" /></svg> Send test
+            </button>
           </div>
           <p class="muted" style="margin-top:8px" id="macro-current"></p>
         </div>
@@ -139,18 +255,22 @@ Notification → Display Notification
 
 <div class="panel" id="whatsapp">
   <div class="panel-head">
-    <h2>3 · WhatsApp chats → incidents</h2>
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-forum" /></svg> 5 · WhatsApp chats → incidents</h2>
+    <span class="admin-tag">Admin</span>
     <div class="spacer"></div>
-    <a class="btn btn-sm btn-ghost" href="/settings">Manage watched chats →</a>
+    <a class="btn btn-sm btn-ghost" href="/settings">
+      Manage watched chats <svg class="ic" aria-hidden="true"><use href="#i-arrow-right" /></svg>
+    </a>
   </div>
   <div class="panel-body">
     <div class="banner info" style="margin-top:0">
-      <span>ℹ️</span>
+      <svg class="ic" aria-hidden="true"><use href="#i-info" /></svg>
       <div class="grow">
-        WhatsApp has no official way to read chats you are already in. So the
-        phone does the reading: MacroDroid watches the WhatsApp notification for
-        the chats you list, and forwards it to AlertBot. Nothing is linked to
-        your WhatsApp account, and no third-party service sees your messages.
+        WhatsApp has no official way to read chats you are already in. So one
+        admin handset does the reading: MacroDroid watches the WhatsApp
+        notification for the chats you list, and forwards it to AlertBot.
+        Nothing is linked to a WhatsApp account, no third-party service sees the
+        messages, and no engineer's own phone is involved.
       </div>
     </div>
 
@@ -198,7 +318,9 @@ Notification → Display Notification
           <p>Paste this URL, and turn <strong>URL encode</strong> on:</p>
           <div class="copy-row">
             <span class="code" id="wa-url">…</span>
-            <button class="btn-sm" onclick="AlertBot.copy(document.getElementById('wa-url').textContent)">Copy</button>
+            <button class="btn-sm" onclick="AlertBot.copy(document.getElementById('wa-url').textContent)">
+              <svg class="ic" aria-hidden="true"><use href="#i-copy" /></svg> Copy
+            </button>
           </div>
           <p style="margin-top:10px">
             <code>{not_title}</code> and <code>{not_text}</code> are MacroDroid's
@@ -219,120 +341,60 @@ Notification → Display Notification
           </p>
           <div class="copy-row">
             <span class="code" id="wa-test-url">…</span>
-            <button class="btn-sm" onclick="AlertBot.copy(document.getElementById('wa-test-url').textContent)">Copy</button>
+            <button class="btn-sm" onclick="AlertBot.copy(document.getElementById('wa-test-url').textContent)">
+              <svg class="ic" aria-hidden="true"><use href="#i-copy" /></svg> Copy
+            </button>
           </div>
         </div>
       </div>
     </div>
 
     <div class="banner warn" style="margin-bottom:0">
-      <span>⚠️</span>
+      <svg class="ic" aria-hidden="true"><use href="#i-warning" /></svg>
       <div class="grow">
-        This runs on your phone, so it only works while the phone is on and
-        online — and AlertBot must be reachable from it. On localhost that means
-        the same Wi-Fi and your PC's LAN address, which is the main reason to
-        deploy the backend somewhere permanent.
+        This runs on the admin handset, so it only works while that phone is on
+        and online — and AlertBot must be reachable from it. On localhost that
+        means the same Wi-Fi and the PC's LAN address, which is the main reason
+        to deploy the backend somewhere permanent.
       </div>
     </div>
-  </div>
-</div>
-
-<div class="panel">
-  <div class="panel-head"><h2>4 · AlertBot Android app (Firebase)</h2></div>
-  <div class="panel-body">
-    <p style="margin-top:0">
-      The Kotlin app lives in <code>android/</code> in this repository. It receives
-      FCM pushes, wakes the screen, plays a full-volume alarm, vibrates and lets you
-      acknowledge the incident from the notification.
-    </p>
-    <div class="steps">
-      <div class="step">
-        <span class="step-num"></span>
-        <div>
-          <h3>Install the APK</h3>
-          {% if apk_available %}
-          <p>
-            Open this page <em>on the phone</em> and tap below. Android will ask
-            you to allow installs from unknown sources — that prompt is expected.
-          </p>
-          <p>
-            <a class="btn btn-primary" href="/static/alertbot.apk" download>Download alertbot.apk</a>
-          </p>
-          <p class="muted">
-            This build came from <strong>Actions → Build Android APK</strong>. To
-            refresh it, download the artifact again and drop the APK at
-            <code>app/static/alertbot.apk</code>.
-          </p>
-          {% else %}
-          <p>
-            Your PC can't run Android Studio, so build it in the cloud: the repo
-            ships <code>.github/workflows/android.yml</code>. Push to GitHub, open
-            <strong>Actions → Build Android APK</strong>, download the artifact and
-            save the APK as <code>app/static/alertbot.apk</code> — a download
-            button will appear here.
-          </p>
-          {% endif %}
-        </div>
-      </div>
-      <div class="step">
-        <span class="step-num"></span>
-        <div>
-          <h3>Point the app at this server</h3>
-          <p>
-            On first launch enter the backend URL and (if set) the dashboard
-            password. The app registers its FCM token with
-            <code>POST /api/devices</code> — it then shows up under Settings → devices.
-          </p>
-          <div class="copy-row">
-            <span class="code" id="backend-url"></span>
-            <button class="btn-sm" onclick="AlertBot.copy(document.getElementById('backend-url').textContent)">Copy</button>
-          </div>
-        </div>
-      </div>
-      <div class="step">
-        <span class="step-num"></span>
-        <div>
-          <h3>Enable Firebase in Settings</h3>
-          <p>Turn on the Firebase channel, then hit its Test button.</p>
-          <p class="muted">
-            Installing the APK is not enough on its own: the server can only push
-            to it once <code>credentials/firebase.json</code> (or
-            <code>FIREBASE_CREDENTIALS_JSON</code>) holds a service-account key
-            for the Firebase project. Until then ntfy is the channel that rings.
-          </p>
-          <button onclick="testChannel('firebase', this)">Send Firebase test</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="panel">
-  <div class="panel-head"><h2>5 · Install this dashboard as an app</h2></div>
-  <div class="panel-body">
-    <p style="margin-top:0" class="muted">
-      AlertBot is a PWA, so it installs on any phone without a store.
-    </p>
-    <ul style="color:var(--text-dim); font-size:14px; line-height:1.9">
-      <li><strong>Android / Chrome:</strong> menu ⋮ → <em>Add to Home screen</em> → Install.</li>
-      <li><strong>iPhone / Safari:</strong> Share → <em>Add to Home Screen</em>. Then open it from the home screen — web push only works in installed mode on iOS 16.4+.</li>
-      <li><strong>Desktop:</strong> the install icon in the address bar.</li>
-    </ul>
-    <button onclick="AlertBot.askPermission()">🔔 Enable browser notifications</button>
   </div>
 </div>
 
 <div class="panel">
   <div class="panel-head">
-    <h2>End-to-end check</h2>
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-install" /></svg> 6 · Install this dashboard as a web app</h2>
+  </div>
+  <div class="panel-body">
+    <p style="margin-top:0" class="muted">
+      This dashboard is a PWA, so it installs on any phone without a store. It is
+      the receipt, not the alarm — engineers get woken by the AlertBot app in
+      section 1, not by this.
+    </p>
+    <ul>
+      <li><strong>Android / Chrome:</strong> menu ⋮ → <em>Add to Home screen</em> → Install.</li>
+      <li><strong>iPhone / Safari:</strong> Share → <em>Add to Home Screen</em>. Then open it from the home screen — web push only works in installed mode on iOS 16.4+.</li>
+      <li><strong>Desktop:</strong> the install icon in the address bar.</li>
+    </ul>
+    <button onclick="AlertBot.askPermission()">
+      <svg class="ic" aria-hidden="true"><use href="#i-bell-active" /></svg> Enable browser notifications
+    </button>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2><svg class="ic" aria-hidden="true"><use href="#i-check-circle" /></svg> End-to-end check</h2>
     <div class="spacer"></div>
-    <button class="btn-danger" onclick="fullTest(this)">🚨 Fire a test incident</button>
+    <button class="btn-danger" onclick="fullTest(this)">
+      <svg class="ic" aria-hidden="true"><use href="#i-warning" /></svg> Fire a test incident
+    </button>
   </div>
   <div class="panel-body">
     <p class="muted" style="margin-top:0">
       Creates a real incident through IncidentService — the same path a Pingdom
-      email takes. Your phone should react within a couple of seconds, and keep
-      re-alerting until you acknowledge it.
+      email takes. Every signed-in phone should react within a couple of seconds,
+      and keep re-alerting until someone acknowledges it.
     </p>
     <div id="test-result"></div>
   </div>
@@ -414,7 +476,7 @@ Notification → Display Notification
       });
       data.results.forEach((result) =>
         AlertBot.toast(
-          `${result.provider}: ${result.success ? "sent ✓" : "failed — " + result.detail}`,
+          `${result.provider}: ${result.success ? "sent" : "failed — " + result.detail}`,
           result.success ? "ok" : "err",
         ),
       );
@@ -430,7 +492,7 @@ Notification → Display Notification
       const result = await AlertBot.api("/api/test-alert", { method: "POST", body: {} });
       document.getElementById("test-result").innerHTML = `
         <div class="banner ok">
-          <span>✅</span>
+          ${AlertBot.icon("check-circle")}
           <div class="grow">
             Incident #${result.incident_id} created via IncidentService.
             <a href="/incident/${result.incident_id}">Watch the delivery timeline →</a>
