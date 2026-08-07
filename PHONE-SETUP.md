@@ -196,22 +196,39 @@ run → download the artifact → drop it at `app/static/alertbot.apk`.
 
 ### Sign in
 
-First launch is a single sign-in screen with **three** fields. The device
-registration key is no longer one of them: the app fetches it from
-`GET /api/health` using the dashboard login it just completed, so nobody has to
-copy a token between a dashboard and a phone.
+First launch is a single sign-in screen with **two** fields, neither of them
+technical. Staff are not expected to know what a server address is, and they are
+certainly not given the admin password.
 
 | Field | Value |
 |---|---|
-| Server address | pre-filled from `DEFAULT_SERVER_URL` in `data/Config.kt` |
-| Username | `admin` |
-| Password | your `DASHBOARD_PASSWORD` |
+| Your name | whatever they want this phone called in the dashboard |
+| PIN | your `APP_PIN` |
 
-Tap **Sign in**. In the background it validates against `GET /api/stats`,
-fetches the registration key, gets an FCM token and registers via
+There is no server address field — it is compiled in from `DEFAULT_SERVER_URL`
+in `data/Config.kt` and never shown. There is no username, no password and no
+registration key.
+
+**Set `APP_PIN` in `.env` before anyone tries this**, or sign-in returns 503
+with "ask your administrator to finish setting it up". Treat it as a password,
+not a bank PIN — six characters or more. It is the only thing between a public
+URL and your alert list. Leaving it empty switches app sign-in off rather than
+leaving it open.
+
+Tap **Sign in**. `POST /api/app/signin` checks the PIN and returns the device
+registration key; the app stores that, gets an FCM token and registers via
 `POST /api/devices` — the phone then appears under Settings → devices, which is
-your confirmation. This step needs Step 0 done, otherwise the app gets a GitHub
-login page instead of the API.
+your confirmation. From then on the key is what authenticates the app, sent as
+`X-Registration-Key`. This step needs Step 0 done, otherwise the app gets a
+GitHub login page instead of the API.
+
+The key opens the alert list, acknowledge and test-alert, and nothing else — the
+dashboard pages and the settings API still require the admin password, because
+the key is baked into every APK.
+
+Because the PIN is shared rather than per-person, revoking one person's access
+means changing `APP_PIN` and re-signing-in every phone. Five wrong PINs from one
+address locks that address out for 15 minutes.
 
 Next comes **Alarm setup**: three plain-language checks (notifications,
 battery exemption, and on Android 14+ full-screen intent). All three matter on a

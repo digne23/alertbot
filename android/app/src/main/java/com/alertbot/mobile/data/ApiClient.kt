@@ -1,7 +1,6 @@
 package com.alertbot.mobile.data
 
 import android.content.Context
-import android.util.Base64
 import android.util.Log
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -16,6 +15,10 @@ import java.util.concurrent.TimeUnit
  * Thin wrapper over the AlertBot REST API. No business logic lives here — the
  * server owns all of that. Every call blocks, so callers hop to
  * `Dispatchers.IO` (or a receiver's own thread) first.
+ *
+ * Authentication is one header, `X-Registration-Key`, holding the key the
+ * server returned at sign-in. There is no Basic auth and no dashboard password
+ * anywhere in this app any more.
  */
 object ApiClient {
 
@@ -28,40 +31,18 @@ object ApiClient {
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
-    /** Credentials for one call. Sign-in uses values not yet saved to [Prefs]. */
-    data class Creds(
-        val baseUrl: String,
-        val username: String,
-        val password: String,
-        val registrationKey: String = "",
-    )
+    /** The server address, compiled in. Never user-supplied. */
+    private val baseUrl: String = DEFAULT_SERVER_URL.trim().trimEnd('/')
 
-    private fun Context.creds() = Creds(baseUrl, username, password, registrationKey)
-
-    /**
-     * Accepts what people actually type. "alerts.esicia.rw" and
-     * "alerts.esicia.rw/" both become a URL that works.
-     */
-    fun normaliseUrl(raw: String): String {
-        val trimmed = raw.trim().trimEnd('/')
-        if (trimmed.isEmpty()) return ""
-        return if (trimmed.contains("://")) trimmed else "https://$trimmed"
-    }
-
-    private fun request(creds: Creds, path: String): Request.Builder {
-        val builder = Request.Builder().url("${creds.baseUrl}$path")
-        if (creds.username.isNotBlank() || creds.password.isNotBlank()) {
-            val raw = "${creds.username}:${creds.password}"
-            builder.header(
-                "Authorization",
-                "Basic " + Base64.encodeToString(raw.toByteArray(), Base64.NO_WRAP),
-            )
-        }
-        if (creds.registrationKey.isNotBlank()) {
-            builder.header("X-Registration-Key", creds.registrationKey)
+    private fun request(path: String, key: String): Request.Builder {
+        val builder = Request.Builder().url("$baseUrl$path")
+        if (key.isNotBlank()) {
+            builder.header("X-Registration-Key", key)
         }
         return builder
     }
+
+    private fun Context.request(path: String) = request(path, registrationKey)
 
     private fun <T> call(builder: Request.Builder, block: (Response) -> T): T? = try {
         client.newCall(builder.build()).execute().use(block)
@@ -73,64 +54,76 @@ object ApiClient {
     // --- Sign in ---------------------------------------------------------
 
     sealed interface SignInResult {
-        /** [pushEnabled] is false when the server's Firebase channel is off —
-         *  the app is usable but will never ring. Worth saying out loud. */
-        data class Success(val pushEnabled: Boolean) : SignInResult
-        data object BadCredentials : SignInResult
+        /**
+         * [pushEnabled] is false when the server's Firebase channel is off —
+         * the app is usable but will never ring. Worth saying out loud.
+         */
+        data class Success(val key: String, val name: String, val pushEnabled: Boolean) : SignInResult
+
+        data object WrongPin : SignInResult
+
+        /** Too many wrong PINs from this phone; the server is making us wait. */
+        data class TooManyAttempts(val message: String) : SignInResult
+
+        /** The server has no PIN configured, so nobody can sign in yet. */
+        data object NotConfigured : SignInResult
+
         data object Unreachable : SignInResult
     }
 
     /**
-     * One call proves the address *and* the credentials: `/api/stats` sits
-     * behind the same Basic auth as the dashboard, so 200 means both are good
-     * and 401 means the password is wrong.
+     * Exchanges a name and PIN for the registration key.
+     *
+     * The key is what every later call uses, so the PIN is typed once and never
+     * stored. See `app/api/app_auth.py`.
      */
-    fun signIn(creds: Creds): SignInResult {
-        val response = call(request(creds, "/api/stats").get()) { response ->
+    fun signIn(name: String, pin: String): SignInResult {
+        val payload = JSONObject()
+            .put("name", name)
+            .put("pin", pin)
+            .toString()
+
+        val response = call(
+            request("/api/app/signin", key = "").post(payload.toRequestBody(JSON))
+        ) { response ->
             response.code to (response.body?.string() ?: "")
         } ?: return SignInResult.Unreachable
 
         val (code, body) = response
-        if (code == 401 || code == 403) return SignInResult.BadCredentials
-        if (code !in 200..299) return SignInResult.Unreachable
-
-        return SignInResult.Success(pushEnabled = firebaseEnabled(body))
+        return when (code) {
+            in 200..299 -> parseSignIn(body, name)
+            401, 403 -> SignInResult.WrongPin
+            429 -> SignInResult.TooManyAttempts(detailOf(body))
+            503 -> SignInResult.NotConfigured
+            else -> SignInResult.Unreachable
+        }
     }
 
-    /** Reads `channels[]` out of a `/api/stats` body. */
-    private fun firebaseEnabled(body: String): Boolean = try {
-        val channels = JSONObject(body).optJSONArray("channels") ?: JSONArray()
-        (0 until channels.length()).any { index ->
-            val channel = channels.optJSONObject(index)
-            channel?.optString("name") == "firebase" && channel.optBoolean("enabled", false)
-        }
+    private fun parseSignIn(body: String, typedName: String): SignInResult = try {
+        val json = JSONObject(body)
+        val key = json.optString("key", "")
+        SignInResult.Success(
+            key = key,
+            name = json.optString("name", typedName),
+            pushEnabled = json.optBoolean("push_enabled", false),
+        )
     } catch (error: Exception) {
-        false
+        Log.w(TAG, "Could not read sign-in reply: ${error.message}")
+        SignInResult.Unreachable
     }
 
-    /**
-     * Fetches the device registration key so the user never has to see it.
-     * `/api/health` returns it behind the dashboard login (see
-     * `app/main.py`), which is exactly the login we just completed.
-     */
-    fun fetchRegistrationKey(creds: Creds): String {
-        val body = call(request(creds, "/api/health").get()) { response ->
-            if (response.isSuccessful) response.body?.string() else null
-        } ?: return ""
-
-        return try {
-            JSONObject(body).optString("ingest_key", "")
-        } catch (error: Exception) {
-            ""
-        }
+    /** FastAPI puts human-readable errors in `detail`. */
+    private fun detailOf(body: String): String = try {
+        JSONObject(body).optString("detail", "")
+    } catch (error: Exception) {
+        ""
     }
 
     // --- Device registration ---------------------------------------------
 
     /** Tell the backend about this device's FCM token. Safe to call repeatedly. */
     fun registerDevice(context: Context, token: String, label: String): Boolean {
-        val creds = context.creds()
-        if (creds.baseUrl.isBlank() || token.isBlank()) return false
+        if (token.isBlank()) return false
 
         val payload = JSONObject()
             .put("token", token)
@@ -138,7 +131,9 @@ object ApiClient {
             .put("platform", "android")
             .toString()
 
-        return call(request(creds, "/api/devices").post(payload.toRequestBody(JSON))) { response ->
+        return call(
+            context.request("/api/devices").post(payload.toRequestBody(JSON))
+        ) { response ->
             Log.i(TAG, "registerDevice -> HTTP ${response.code}")
             response.isSuccessful
         } ?: false
@@ -148,11 +143,8 @@ object ApiClient {
 
     /** Open incidents, newest first. Null means the server could not be reached. */
     fun openIncidents(context: Context): List<Incident>? {
-        val creds = context.creds()
-        if (creds.baseUrl.isBlank()) return null
-
         val body = call(
-            request(creds, "/api/incidents?state=OPEN&limit=100").get()
+            context.request("/api/incidents?state=OPEN&limit=100").get()
         ) { response ->
             if (response.isSuccessful) response.body?.string() else null
         } ?: return null
@@ -169,10 +161,9 @@ object ApiClient {
     }
 
     fun incident(context: Context, incidentId: Int): Incident? {
-        val creds = context.creds()
-        if (incidentId <= 0 || creds.baseUrl.isBlank()) return null
+        if (incidentId <= 0) return null
 
-        val body = call(request(creds, "/api/incidents/$incidentId").get()) { response ->
+        val body = call(context.request("/api/incidents/$incidentId").get()) { response ->
             if (response.isSuccessful) response.body?.string() else null
         } ?: return null
 
@@ -184,11 +175,10 @@ object ApiClient {
     }
 
     fun acknowledge(context: Context, incidentId: Int): Boolean {
-        val creds = context.creds()
-        if (incidentId <= 0 || creds.baseUrl.isBlank()) return false
+        if (incidentId <= 0) return false
 
         return call(
-            request(creds, "/api/incidents/$incidentId/ack").post(EMPTY_BODY)
+            context.request("/api/incidents/$incidentId/ack").post(EMPTY_BODY)
         ) { response -> response.isSuccessful } ?: false
     }
 
@@ -197,12 +187,8 @@ object ApiClient {
      * the whole notification path fires and the phone genuinely rings. This is
      * the only way to prove push delivery actually works.
      */
-    fun sendTestAlert(context: Context): Boolean {
-        val creds = context.creds()
-        if (creds.baseUrl.isBlank()) return false
-
-        return call(
-            request(creds, "/api/test-alert").post(EMPTY_BODY)
-        ) { response -> response.isSuccessful } ?: false
-    }
+    fun sendTestAlert(context: Context): Boolean =
+        call(context.request("/api/test-alert").post(EMPTY_BODY)) { response ->
+            response.isSuccessful
+        } ?: false
 }

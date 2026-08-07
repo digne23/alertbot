@@ -93,6 +93,12 @@ class Settings:
     # Empty = open registration (fine locally, set it once deployed).
     DEVICE_REGISTRATION_KEY = os.getenv("DEVICE_REGISTRATION_KEY", "")
 
+    # Shared PIN the Android app asks staff for. It is the only thing standing
+    # between a public URL and the alert list, so treat it as a password, not a
+    # bank PIN — six characters or more. Empty disables app sign-in entirely
+    # (POST /api/app/signin returns 503) rather than letting anyone in.
+    APP_PIN = os.getenv("APP_PIN", "")
+
     PUBLIC_URL = os.getenv("PUBLIC_URL", "http://127.0.0.1:8000")
 
 

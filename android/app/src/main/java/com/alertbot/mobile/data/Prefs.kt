@@ -7,13 +7,18 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
 /**
- * Everything this app remembers: which server, who you are, and the push token.
+ * Everything this app remembers: who this phone belongs to, the key it uses to
+ * talk to the server, and the push token.
  *
- * The password here is a real dashboard credential, so it lives in
- * [EncryptedSharedPreferences] rather than plaintext. If the device keystore is
- * unavailable — some OEM ROMs, a corrupted key after a restore — we fall back
- * to ordinary preferences rather than refusing to sign in. Being woken up
- * matters more than the storage tier, and the fallback is logged.
+ * There is no server address here — that is baked into [DEFAULT_SERVER_URL] —
+ * and no password. The user types a PIN once; what gets stored is the
+ * registration key the server hands back in exchange, never the PIN itself.
+ *
+ * That key is a real credential, so it lives in [EncryptedSharedPreferences]
+ * rather than plaintext. If the device keystore is unavailable — some OEM ROMs,
+ * a corrupted key after a restore — we fall back to ordinary preferences rather
+ * than refusing to sign in. Being woken up matters more than the storage tier,
+ * and the fallback is logged.
  *
  * `allowBackup` is off in the manifest for the same reason: a restored backup
  * would carry ciphertext this device's keystore cannot read.
@@ -54,21 +59,19 @@ private fun Context.write(key: String, value: String) {
     store().edit().putString(key, value).apply()
 }
 
-var Context.baseUrl: String
-    get() = read("base_url").trimEnd('/')
-    set(value) = write("base_url", value.trim().trimEnd('/'))
-
-var Context.username: String
-    get() = read("username")
-    set(value) = write("username", value.trim())
-
-var Context.password: String
-    get() = read("password")
-    set(value) = write("password", value)
+/**
+ * The name the user typed at sign-in. Purely a label: it identifies this phone
+ * in the dashboard's device list and in the account sheet. With a shared PIN
+ * there is no per-person account behind it.
+ */
+var Context.displayName: String
+    get() = read("display_name")
+    set(value) = write("display_name", value.trim())
 
 /**
- * The server's `DEVICE_REGISTRATION_KEY`. Never typed by a user: it is read
- * from `GET /api/health` once the dashboard password has been accepted.
+ * The server's `DEVICE_REGISTRATION_KEY`. Never typed by a user: the server
+ * returns it from `POST /api/app/signin` once the PIN has been accepted. It is
+ * what authenticates every subsequent call.
  */
 var Context.registrationKey: String
     get() = read("registration_key")
@@ -90,8 +93,7 @@ var Context.setupSeen: Boolean
 
 fun Context.signOut() {
     store().edit()
-        .remove("username")
-        .remove("password")
+        .remove("display_name")
         .remove("registration_key")
         .remove("signed_in")
         .remove("setup_seen")

@@ -70,6 +70,7 @@ def main() -> int:
 
     from fastapi.testclient import TestClient
 
+    from app.api import app_auth
     from app.config import settings as env
     from app.database import SessionLocal, init_db
     from app.main import app
@@ -147,6 +148,48 @@ def main() -> int:
             else:
                 check("dashboard is unprotected (DASHBOARD_PASSWORD empty)", True,
                       "set it before deploying")
+
+            # ---------------------------------------------------------------
+            section("2b. The phone signs in with a name and a PIN")
+            # Staff have no dashboard password. They type a name and a PIN; the
+            # server hands back the registration key, which then stands in for
+            # the password on the endpoints the app needs — and on nothing else.
+            bare = TestClient(app)
+            real_pin, real_key = env.APP_PIN, env.DEVICE_REGISTRATION_KEY
+            try:
+                env.APP_PIN = "selftest-pin-9174"
+                env.DEVICE_REGISTRATION_KEY = "selftest-key-3382"
+                app_auth._failures.clear()
+
+                good = bare.post("/api/app/signin",
+                                 json={"name": "Selftest phone", "pin": env.APP_PIN})
+                check("correct PIN signs in", good.status_code == 200,
+                      f"HTTP {good.status_code}")
+                issued = good.json().get("key", "") if good.status_code == 200 else ""
+                check("sign-in hands back the registration key",
+                      issued == env.DEVICE_REGISTRATION_KEY)
+
+                check("wrong PIN is refused",
+                      bare.post("/api/app/signin",
+                                json={"name": "x", "pin": "wrong"}).status_code == 401)
+
+                key_header = {"X-Registration-Key": issued}
+                check("the key opens the alert list",
+                      bare.get("/api/incidents", headers=key_header).status_code == 200)
+                # Only meaningful when the dashboard actually has a password —
+                # without one every endpoint is open and this proves nothing.
+                if env.DASHBOARD_PASSWORD:
+                    check("the key does not open settings",
+                          bare.get("/api/settings/users", headers=key_header).status_code == 401)
+
+                app_auth._failures.clear()
+                env.APP_PIN = ""
+                check("no PIN configured means no sign-in",
+                      bare.post("/api/app/signin",
+                                json={"name": "x", "pin": "y"}).status_code == 503)
+            finally:
+                env.APP_PIN, env.DEVICE_REGISTRATION_KEY = real_pin, real_key
+                app_auth._failures.clear()
 
             # ---------------------------------------------------------------
             section("3. An alert reaches the phone")

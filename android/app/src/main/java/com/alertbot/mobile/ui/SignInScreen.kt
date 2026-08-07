@@ -9,8 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -44,13 +44,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.alertbot.mobile.R
 import com.alertbot.mobile.data.ApiClient
-import com.alertbot.mobile.data.DEFAULT_SERVER_URL
-import com.alertbot.mobile.data.baseUrl
+import com.alertbot.mobile.data.displayName
 import com.alertbot.mobile.data.isSignedIn
-import com.alertbot.mobile.data.password
 import com.alertbot.mobile.data.registerThisDevice
 import com.alertbot.mobile.data.registrationKey
-import com.alertbot.mobile.data.username
 import com.alertbot.mobile.ui.components.BrandMark
 import com.alertbot.mobile.ui.theme.BrandBlue
 import com.alertbot.mobile.ui.theme.Critical
@@ -61,41 +58,43 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * The whole of first-run setup. Three fields, one button.
+ * The whole of first-run setup. Two fields, one button.
  *
- * The server's device registration key is never shown: it is fetched from
- * `/api/health` with the credentials the user just proved, so nobody has to
- * copy a token between a dashboard and a phone.
+ * There is deliberately no server address, no username and no registration key
+ * on this screen. The address is compiled in (`DEFAULT_SERVER_URL`) and the key
+ * arrives from the server once the PIN is accepted — so the only things a
+ * non-technical member of staff has to know are their own name and a PIN
+ * someone told them.
  */
 @Composable
 fun SignInScreen(onSignedIn: (warningRes: Int?) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var server by remember {
-        mutableStateOf(context.baseUrl.ifBlank { DEFAULT_SERVER_URL })
-    }
-    var user by remember { mutableStateOf(context.username) }
-    var secret by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(context.displayName) }
+    var pin by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     val unreachable = stringResource(R.string.error_unreachable)
-    val badCredentials = stringResource(R.string.error_bad_credentials)
-    val noServer = stringResource(R.string.error_no_server)
+    val wrongPin = stringResource(R.string.error_wrong_pin)
+    val notConfigured = stringResource(R.string.error_not_configured)
+    val needName = stringResource(R.string.error_no_name)
+    val needPin = stringResource(R.string.error_no_pin)
+    val tooManyFallback = stringResource(R.string.error_too_many)
 
     fun submit() {
-        val url = ApiClient.normaliseUrl(server)
-        if (url.isEmpty()) {
-            error = noServer
-            return
+        when {
+            name.isBlank() -> { error = needName; return }
+            pin.isBlank() -> { error = needPin; return }
         }
 
         busy = true
         error = null
         scope.launchSignIn(
             context = context,
-            creds = ApiClient.Creds(url, user.trim(), secret),
+            name = name.trim(),
+            pin = pin,
             onFailure = { message ->
                 busy = false
                 error = message
@@ -105,7 +104,9 @@ fun SignInScreen(onSignedIn: (warningRes: Int?) -> Unit) {
                 onSignedIn(warningRes)
             },
             unreachable = unreachable,
-            badCredentials = badCredentials,
+            wrongPin = wrongPin,
+            notConfigured = notConfigured,
+            tooManyFallback = tooManyFallback,
         )
     }
 
@@ -154,25 +155,10 @@ fun SignInScreen(onSignedIn: (warningRes: Int?) -> Unit) {
             Spacer(Modifier.height(28.dp))
 
             OutlinedTextField(
-                value = server,
-                onValueChange = { server = it },
-                label = { Text(stringResource(R.string.label_server)) },
-                singleLine = true,
-                enabled = !busy,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Uri,
-                    imeAction = ImeAction.Next,
-                ),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = user,
-                onValueChange = { user = it },
-                label = { Text(stringResource(R.string.label_username)) },
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(stringResource(R.string.label_name)) },
+                supportingText = { Text(stringResource(R.string.label_name_hint)) },
                 singleLine = true,
                 enabled = !busy,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
@@ -183,14 +169,15 @@ fun SignInScreen(onSignedIn: (warningRes: Int?) -> Unit) {
             Spacer(Modifier.height(16.dp))
 
             OutlinedTextField(
-                value = secret,
-                onValueChange = { secret = it },
-                label = { Text(stringResource(R.string.label_password)) },
+                value = pin,
+                onValueChange = { pin = it },
+                label = { Text(stringResource(R.string.label_pin)) },
+                supportingText = { Text(stringResource(R.string.label_pin_hint)) },
                 singleLine = true,
                 enabled = !busy,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
+                    keyboardType = KeyboardType.NumberPassword,
                     imeAction = ImeAction.Done,
                 ),
                 shape = RoundedCornerShape(12.dp),
@@ -256,40 +243,42 @@ fun SignInScreen(onSignedIn: (warningRes: Int?) -> Unit) {
 
 /**
  * Sign in, then quietly do the three technical things the user should never
- * have to know about: store the credentials, fetch the registration key, and
+ * have to know about: store the key the server issued, remember the name, and
  * register this phone's push token.
  */
 private fun CoroutineScope.launchSignIn(
     context: Context,
-    creds: ApiClient.Creds,
+    name: String,
+    pin: String,
     unreachable: String,
-    badCredentials: String,
+    wrongPin: String,
+    notConfigured: String,
+    tooManyFallback: String,
     onFailure: (String) -> Unit,
     onSuccess: (Int?) -> Unit,
 ) {
     launch {
-        val result = withContext(Dispatchers.IO) { ApiClient.signIn(creds) }
+        val result = withContext(Dispatchers.IO) { ApiClient.signIn(name, pin) }
 
         when (result) {
             is ApiClient.SignInResult.Unreachable -> onFailure(unreachable)
-            is ApiClient.SignInResult.BadCredentials -> onFailure(badCredentials)
+            is ApiClient.SignInResult.WrongPin -> onFailure(wrongPin)
+            is ApiClient.SignInResult.NotConfigured -> onFailure(notConfigured)
+            is ApiClient.SignInResult.TooManyAttempts ->
+                onFailure(result.message.ifBlank { tooManyFallback })
+
             is ApiClient.SignInResult.Success -> {
-                context.baseUrl = creds.baseUrl
-                context.username = creds.username
-                context.password = creds.password
+                context.registrationKey = result.key
+                context.displayName = result.name
                 context.isSignedIn = true
 
-                withContext(Dispatchers.IO) {
-                    context.registrationKey = ApiClient.fetchRegistrationKey(
-                        creds.copy(baseUrl = context.baseUrl)
-                    )
-                }
                 val registered = registerThisDevice(context)
 
-                // Two separate ways to end up signed in but unwakeable, and
-                // both are worth saying out loud rather than discovering at 3am.
+                // Three separate ways to end up signed in but unwakeable, and
+                // all are worth saying out loud rather than discovering at 3am.
                 onSuccess(
                     when {
+                        result.key.isBlank() -> R.string.warn_no_key
                         !result.pushEnabled -> R.string.warn_push_disabled
                         !registered -> R.string.error_push_token
                         else -> null

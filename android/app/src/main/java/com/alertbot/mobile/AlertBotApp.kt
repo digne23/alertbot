@@ -6,7 +6,7 @@ import android.app.NotificationManager
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
-import com.alertbot.mobile.data.baseUrl
+import com.alertbot.mobile.data.displayName
 import kotlin.concurrent.thread
 
 class AlertBotApp : Application() {
@@ -18,7 +18,7 @@ class AlertBotApp : Application() {
         // Opening the encrypted preference store builds a keystore-backed master
         // key, which is slow enough to be visible on the first screen. Warm it
         // off the main thread while the UI is still starting.
-        thread { baseUrl }
+        thread { displayName }
     }
 
     /**

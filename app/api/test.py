@@ -10,14 +10,20 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.auth import require_auth
+from app.auth import require_app_or_auth
 from app.database import get_db
 from app.services.incident_service import IncidentService
 from app.services.rule_engine import explain
 from app.services.parsers import get_parser
 from app.api.incidents import serialize
 
-router = APIRouter(prefix="/api", tags=["Testing"], dependencies=[Depends(require_auth)])
+router = APIRouter(
+    prefix="/api",
+    tags=["Testing"],
+    # The app's "Send a test alert" needs this, and it holds the registration
+    # key rather than a dashboard password. See app/auth.py.
+    dependencies=[Depends(require_app_or_auth)],
+)
 
 
 SAMPLES = [

@@ -95,6 +95,17 @@ The model uses **`state`**, never `status`.
   `/healthz` stays open for uptime probes; `/api/ingest/*` and `/api/devices`
   use `DEVICE_REGISTRATION_KEY` instead, so the phone can call them with a
   plain URL.
+- **Staff sign into the app with a name and a shared PIN**, never the admin
+  password — non-technical users have neither a server URL nor a dashboard
+  login, and requiring them made the app usable by exactly one person.
+  `POST /api/app/signin` checks `APP_PIN` and returns the registration key; the
+  app sends that as `X-Registration-Key` from then on. `require_app_or_auth`
+  accepts either Basic or that key, and is applied **only** to the incidents and
+  test routers — the key ships inside every APK, so it must not unlock the
+  dashboard pages or the settings API. Empty `APP_PIN` disables app sign-in
+  (503) rather than leaving it open. The `name` is a device label, not an
+  account: revoking one person means changing the PIN for everyone. Per-user
+  PINs are the obvious upgrade and the `users` table is already shaped for it.
 
 ---
 
@@ -157,14 +168,22 @@ Test with `curl -o /dev/null -w "%{http_code}" $PUBLIC_URL/healthz` — 200
 public, 302 private. Note this does **not** block ntfy, which delivers via
 ntfy.sh and needs no inbound access.
 
-**The Android app** (rewritten 2026-08-07, v2.0): a Jetpack Compose client in
-Esicia's brand colours — blue `#0F5C92` and gold `#CCAE3A`, both read out of
-esicia.rw's own logo SVG and stylesheet, not approximated. Four screens: sign
-in, alarm-permission setup, open alerts, one alert with Acknowledge. Plus the
-full-screen alarm. The device registration key is **never typed** — the app
-fetches it from `GET /api/health` with the dashboard credentials the user just
-proved. UI in `ui/`, REST and storage in `data/`, alarm plumbing at the package
-root. The APK builds in CI (fixed in `b123d85`) and is served for sideloading at
+**The Android app** (rewritten 2026-08-07, v2.0; onboarding reworked the same
+day): a Jetpack Compose client in Esicia's brand colours — blue `#0F5C92` and
+gold `#CCAE3A`. Four screens: sign in, alarm-permission setup, open alerts, one
+alert with Acknowledge. Plus the full-screen alarm. Sign-in is **name + PIN
+only** — no URL, no username, no password, no registration key. The server
+address is compiled into `data/Config.kt` and never displayed; the registration
+key arrives from `POST /api/app/signin`. UI in `ui/`, REST and storage in
+`data/`, alarm plumbing at the package root.
+
+⚠️ **The brand hexes above are unverified.** `esicia.rw` sits behind a
+bot-verification WAF that blocks curl and WebFetch alike, so they could not be
+re-checked on 2026-08-07 — they are inherited from an earlier session's claimed
+reading of the logo SVG and stylesheet. Note that a naive fetch returns the
+interstitial page, whose spinner is **green** (`#467C45`); that is not a brand
+colour. Both hexes live in exactly two files, `ui/theme/Color.kt` and
+`res/values/colors.xml`, so correcting them is a two-line change. The APK builds in CI (fixed in `b123d85`) and is served for sideloading at
 `/static/alertbot.apk`, offered as a download button on `/setup` when the file
 is present — it is gitignored, so a fresh clone falls back to build
 instructions.

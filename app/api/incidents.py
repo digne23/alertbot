@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 
-from app.auth import require_auth
+from app.auth import require_app_or_auth
 from app.database import get_db
 from app.models.incident import Incident
 from app.models.notification_log import NotificationLog
@@ -16,7 +16,13 @@ from app.services.incident_service import IncidentService
 from app.services.poller import poll_once
 from app.services import notification_service
 
-router = APIRouter(prefix="/api", tags=["incidents"], dependencies=[Depends(require_auth)])
+router = APIRouter(
+    prefix="/api",
+    tags=["incidents"],
+    # Dashboard login or the phone's registration key — the Android app has no
+    # dashboard password to offer. See app/auth.py.
+    dependencies=[Depends(require_app_or_auth)],
+)
 
 
 def _iso(value: datetime | None) -> str | None:

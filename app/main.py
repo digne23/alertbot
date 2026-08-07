@@ -11,6 +11,7 @@ from app.auth import require_auth, auth_enabled
 from app.config import settings
 from app.database import init_db
 from app.scheduler import start_scheduler, stop_scheduler
+from app.api.app_auth import router as app_auth_router
 from app.api.incidents import router as incidents_router
 from app.api.test import router as test_router
 from app.api.settings import router as settings_router
@@ -39,6 +40,7 @@ app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
+app.include_router(app_auth_router)
 app.include_router(incidents_router)
 app.include_router(test_router)
 app.include_router(settings_router)

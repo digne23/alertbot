@@ -53,9 +53,8 @@ import com.alertbot.mobile.data.AlarmEvents
 import com.alertbot.mobile.data.ApiClient
 import com.alertbot.mobile.data.Incident
 import com.alertbot.mobile.data.TEST_ALERT_TIMEOUT_MS
-import com.alertbot.mobile.data.baseUrl
+import com.alertbot.mobile.data.displayName
 import com.alertbot.mobile.data.signOut
-import com.alertbot.mobile.data.username
 import com.alertbot.mobile.ui.components.EmptyState
 import com.alertbot.mobile.ui.components.IncidentCard
 import com.alertbot.mobile.ui.theme.BrandBlue
@@ -212,8 +211,7 @@ fun AlertsScreen(
             containerColor = MaterialTheme.colorScheme.surface,
         ) {
             AccountSheet(
-                signedInAs = context.username.ifBlank { "this phone" },
-                server = context.baseUrl,
+                signedInAs = context.displayName.ifBlank { "this phone" },
                 onCheckSetup = {
                     showAccount = false
                     onOpenSetup()
@@ -292,7 +290,6 @@ private fun OfflineBanner() {
 @Composable
 private fun AccountSheet(
     signedInAs: String,
-    server: String,
     onCheckSetup: () -> Unit,
     onSendTest: () -> Unit,
     onSignOut: () -> Unit,
@@ -310,8 +307,11 @@ private fun AccountSheet(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.height(4.dp))
+            // Deliberately no server address here. Staff never see one, and a
+            // URL on this sheet is the sort of thing that gets read out on a
+            // support call and typed somewhere it should not be.
             Text(
-                text = server,
+                text = stringResource(R.string.account_subtitle),
                 style = MaterialTheme.typography.labelMedium,
                 color = TextSecondary,
             )
