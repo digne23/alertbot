@@ -16,8 +16,9 @@ import zlib
 
 OUT_DIR = os.path.join("app", "static", "icons")
 
+# Flat brand blue on both stops: the tile is a solid colour, not a gradient.
 BG_OUTER = (15, 92, 146)  # #0F5C92 brand blue
-BG_INNER = (18, 106, 168)  # a touch lighter, for the diagonal sheen
+BG_INNER = (15, 92, 146)
 BELL_TOP = (219, 191, 79)
 BELL_BOTTOM = (198, 168, 56)  # #C6A838 gold dark
 ACCENT = (255, 255, 255)

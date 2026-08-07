@@ -6,6 +6,10 @@
 <resources>
     <string name="app_name">AlertBot</string>
 
+    <!-- Splash -->
+    <string name="splash_tagline">On-call alerts for ESICIA</string>
+    <string name="splash_powered_by">POWERED BY DIGNE</string>
+
     <!-- Sign in -->
     <string name="sign_in_title">Sign in</string>
     <string name="sign_in_subtitle">You only need to do this once. AlertBot will then ring this phone whenever something goes wrong.</string>
